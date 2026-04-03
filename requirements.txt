@@ -1,3 +1,6 @@
+langchain-openai>=0.3
+langgraph>=0.4
+langchain-core>=0.3
 aiohappyeyeballs==2.6.1
 aiohttp==3.13.5
 aiosignal==1.4.0

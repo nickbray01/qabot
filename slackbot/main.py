@@ -8,6 +8,7 @@ from collections import defaultdict
 from fastapi import FastAPI, Header, HTTPException, Request
 from slack_sdk.web.async_client import AsyncWebClient
 from dotenv import load_dotenv
+from search_agent import run_agent
 
 load_dotenv()
 
@@ -88,13 +89,18 @@ async def handle_mention(event: dict):
         text=":thinking_face: thinking...",
     )
 
-    # ── Agent stub — replace this with LangGraph call ──────────────────
+    async def on_tool_call(tool_name: str, args: dict) -> None:
+        label = _TOOL_LABELS.get(tool_name, f"Calling {tool_name}")
+        hint = args.get("query") or args.get("name_or_id") or args.get("artifact_id") or ""
+        text = f":mag: _{label}: `{hint}`_" if hint else f":mag: _{label}..._"
+        await slack.chat_postMessage(channel=channel, thread_ts=thread_ts, text=text)
+
     response = await run_agent(
         user_text=user_text,
         history=conversation_history[thread_ts],
         thread_ts=thread_ts,
+        on_tool_call=on_tool_call,
     )
-    # ────────────────────────────────────────────────────────────────────────
 
     # Append agent response to history
     conversation_history[thread_ts].append({
@@ -113,13 +119,14 @@ async def handle_mention(event: dict):
     )
 
 
-# ── Agent stub ───────────────────────────────────────────────────────────────
-# Drop LangGraph agent here later.
-# `history` is the full conversation so far — pass it to your agent for multi-turn context.
-
-async def run_agent(user_text: str, history: list, thread_ts: str) -> str:
-    # TODO: replace with your actual agent
-    return f"Hello! You asked: *{user_text}*\n\n_(agent not yet wired up)_"
+_TOOL_LABELS: dict[str, str] = {
+    "search_artifacts": "Searching artifacts",
+    "find_pattern_across_customers": "Scanning across all customers",
+    "customer_artifacts": "Looking up customer",
+    "scenario_summary_tool": "Loading scenario",
+    "artifact_full_text": "Reading document",
+    "sql_query": "Running query",
+}
 
 
 # ```

@@ -6,9 +6,9 @@ Running notes from exploration and design sessions. To be compiled into the fina
 
 ## Architecture Decisions
 
-### Tool-Calling Agent over RAG Pipeline
+### Tool-Calling Agent over RAG Pipeline — LangGraph ReAct Loop
 
-**Decision:** Use a tool-calling agent (LangChain `create_tool_calling_agent` / ReAct loop) as the primary architecture rather than a pure RAG pipeline.
+**Decision:** Use a LangGraph ReAct agent (`StateGraph` with `call_model` → `call_tools` cycle, gpt-4o) as the primary architecture rather than a pure RAG pipeline.
 
 **Rationale:**
 - The data requires multi-hop retrieval: find the right customer, then fetch their artifacts, then synthesize across types.
@@ -62,7 +62,7 @@ Running notes from exploration and design sessions. To be compiled into the fina
 
 **Tradeoff:** Grouped tools are more useful for pattern questions but less general. A flat list is a simple, reusable primitive.
 
-**Decision pending:** Build both — a low-level `search_artifacts(query)` and a higher-level `find_pattern_across_customers(query)` that groups by customer and returns a count before the agent reads individual docs.
+**Decision:** Build both — a low-level `search_artifacts(query)` and a higher-level `find_pattern_across_customers(query)` that groups by customer and returns a count before the agent reads individual docs. Both are now implemented in `search_agent/tools.py`. The v1 eval confirms this was the right call: q7 (Canada approval-bypass) succeeded only because the agent used `find_pattern_across_customers`.
 
 
 ---
@@ -123,9 +123,11 @@ Running notes from exploration and design sessions. To be compiled into the fina
 
 3. **Should the agent be given a schema description or allowed to discover it?**
    A system prompt describing the tables and their relationships (scenario → customer → implementation → artifacts) would let the agent write SQL. Without it, the agent can only use pre-built tools. Tradeoff: more capable vs. more brittle (agent writes bad SQL).
+   **Update (v1 eval):** The system prompt now includes the full schema. The agent can and does write SQL — but v1 shows it reaches for `sql_query` too eagerly on questions where the answer is in artifact content, not structured columns. Schema awareness is necessary but not sufficient; tool-selection guidance needs to be stronger.
 
 4. **How do we handle the premature-stopping failure mode reliably?**
    Prompt engineering ("always search broadly before concluding") helps but is fragile. A planning agent that enumerates sub-questions before retrieving is more robust but adds latency. What's the acceptable latency budget?
+   **Update (v1 eval):** Confirmed as the primary failure mode on hard questions. q5 and q6 both terminated after a single failed `sql_query` (1 tool call, score 0.00) rather than falling back to FTS. Next iteration: add explicit system-prompt instructions that `sql_query` is for structured filtering only and that any question involving risk, competitive signals, or cross-account patterns must start with `search_artifacts` or `find_pattern_across_customers`.
 
 5. **Does the Slackbot need to handle follow-up turns / conversation history?**
    If yes, the agent needs memory (at minimum: pass prior tool calls and results back into context). If it's stateless one-shot Q&A, this is much simpler.
@@ -135,22 +137,30 @@ Running notes from exploration and design sessions. To be compiled into the fina
 ## Plans for Future Work
 
 ### Retrieval Layer
-- [ ] Add a `find_pattern_across_customers(query)` tool that groups FTS results by customer and returns counts before surfacing individual artifacts.
+- [x] Add a `find_pattern_across_customers(query)` tool that groups FTS results by customer and returns counts before surfacing individual artifacts.
 - [ ] Evaluate hybrid retrieval: run FTS and vector search in parallel, merge ranked lists with Reciprocal Rank Fusion (RRF), pass top-5 to LLM. LangChain `EnsembleRetriever` handles this.
 - [ ] If adding embeddings: embed `summary` field (not full `content_text`) as the primary unit; store `artifact_id` as metadata for downstream full-text fetch.
 
 ### Agent Design
-- [ ] Write a system prompt that describes the database schema and instructs the agent to search broadly before concluding on pattern/one-off questions.
-- [ ] Evaluate a planning agent (e.g. LangGraph) vs. a flat ReAct loop for multi-hop questions. Planning agents explicitly enumerate sub-questions before retrieving, which reduces anchoring.
-- [ ] Define acceptance criteria for agent eval: what question types must it handle correctly?
+- [x] Write a system prompt that describes the database schema and instructs the agent to search broadly before concluding on pattern/one-off questions.
+- [x] Use LangGraph ReAct loop as the agent architecture (`StateGraph`, gpt-4o).
+- [ ] **[Next]** Strengthen system prompt: explicitly reserve `sql_query` for structured filtering only; require `search_artifacts` or `find_pattern_across_customers` as the starting point for any risk, competitive, or cross-account question. This is the highest-leverage fix given v1 eval results.
+- [ ] Evaluate a planning agent vs. flat ReAct loop for multi-hop questions. Planning agents explicitly enumerate sub-questions before retrieving, which reduces anchoring on the first failed query.
 
 ### Tool Library (`search_agent/`)
-- [ ] `search_artifacts(query, limit)` — FTS, flat list (already in `database_utils`)
-- [ ] `find_pattern_across_customers(query)` — FTS grouped by customer
-- [ ] `customer_artifacts(name)` — all artifacts for one customer (already in `database_utils`)
-- [ ] `artifact_full_text(artifact_id)` — fetch single artifact content
-- [ ] `scenario_summary(scenario_id)` — customer + implementation + artifact list in one shot (already in `database_utils`)
-- [ ] `sql_query(query)` — read-only SQL passthrough for structured questions
+- [x] `search_artifacts(query, limit)` — FTS, flat list
+- [x] `find_pattern_across_customers(query)` — FTS grouped by customer
+- [x] `customer_artifacts(name)` — all artifacts for one customer
+- [x] `artifact_full_text(artifact_id)` — fetch single artifact content
+- [x] `scenario_summary_tool(scenario_id)` — customer + implementation + artifact list in one shot
+- [x] `sql_query(query)` — read-only SQL passthrough for structured questions
+
+### Eval (`evals/`)
+- [x] Define acceptance criteria: 7 benchmark questions (4 easy, 3 hard) with ground-truth answers, expected source customers, and key facts.
+- [x] Build eval harness: instrument LangGraph graph to capture ordered tool calls (name, args, result); LLM judge (gpt-4o-mini) for semantic scoring (threshold 0.7); source-retrieval check by customer name substring match.
+- [x] Establish v1 baseline (see Eval Results below).
+- [ ] Add key-facts coverage metric: report which specific facts the agent missed per question, not just pass/fail.
+- [ ] Track eval history across runs in a versioned results file to catch regressions.
 
 ### Infrastructure (`indexing/`)
 - [ ] Script to embed artifact summaries and load into a vector store (Chroma for local dev)
@@ -159,5 +169,44 @@ Running notes from exploration and design sessions. To be compiled into the fina
 ### Slackbot (`slackbot/`)
 - [ ] Decide: stateless one-shot Q&A vs. conversational with memory
 - [ ] Surface tool call trace in thread replies so users can see how the answer was derived
+
+---
+
+## Eval Results
+
+### v1 Baseline — 2026-04-03
+
+**Setup:** LangGraph ReAct agent, gpt-4o, 7 benchmark questions (4 easy / 3 hard). Judge: gpt-4o-mini, correctness threshold ≥ 0.7.
+
+| Metric | Value |
+|---|---|
+| Overall accuracy | 5/7 (71%) |
+| Easy accuracy | 4/4 (100%) |
+| Hard accuracy | 1/3 (33%) |
+| Sources found | 4/7 (57%) |
+| Avg answer score | 0.63 |
+| Avg tool calls | 2.4 |
+
+**Per-question breakdown:**
+
+| ID | Diff | Correct | Score | Tools | Sources |
+|---|---|---|---|---|---|
+| q1_blueharbor_taxonomy | easy | ✓ | 0.80 | 3 | ✓ |
+| q2_verdant_bay_patch | easy | ✓ | 1.00 | 3 | ✓ |
+| q3_mapleharvest_quebec | easy | ✓ | 0.80 | 6 | ✓ |
+| q4_aureum_scim | easy | ✓ | 1.00 | 2 | ✓ |
+| q5_blueharbor_defect_risk | hard | ✗ | 0.00 | 1 | ✗ |
+| q6_na_west_taxonomy_vs_duplicate | hard | ✗ | 0.00 | 1 | ✗ |
+| q7_canada_approval_bypass | hard | ✓ | 0.80 | 1 | ✗ |
+
+**Root-cause analysis of failures:**
+
+- **q5 (defect risk):** Agent issued a single `sql_query` to find at-risk customers via structured columns (`crm_stage`, `contract_value`). The competitive risk signal (NoiseGuard as a cheap tactical alternative) lives entirely in artifact content. The query returned nothing useful; the agent concluded no at-risk customers exist.
+
+- **q6 (NA West taxonomy vs duplicate):** Agent issued a single `sql_query` filtering by region and product. The `customers` table has a `region` column but no field that distinguishes taxonomy accounts from duplicate-action accounts — that classification only exists in artifact content. The query returned empty; the agent gave up.
+
+- **q7 (Canada approval-bypass):** Agent correctly used `find_pattern_across_customers` and recognized the recurring pattern, but only surfaced 2/7 expected customers (MapleBridge Insurance, MapleFork Franchise). The other five were missed, likely because a single FTS query wasn't broad enough to pull all variant spellings and related artifact types.
+
+**Primary failure mode:** On hard questions requiring competitive/risk reasoning or cross-account synthesis, the agent selects `sql_query` first and stops after one empty result rather than falling back to artifact search. This is a tool-selection / system-prompt problem, not a retrieval gap — the information is in the DB, the agent just isn't choosing the right tool to get it.
 
 
