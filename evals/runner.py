@@ -29,10 +29,14 @@ class ToolCall:
     result: str  # raw string content returned by the tool
 
 
+MAX_TOOL_CALLS = 10
+
+
 @dataclass
 class AgentTrace:
     answer: str
     tool_calls: list[ToolCall] = field(default_factory=list)
+    truncated: bool = False  # True when MAX_TOOL_CALLS was hit
 
     @property
     def total_tool_calls(self) -> int:
@@ -60,6 +64,7 @@ async def run_agent_traced(question: str) -> AgentTrace:
     completed: list[ToolCall] = []
     final_answer = ""
 
+    truncated = False
     async for chunk in graph.astream({"messages": messages}):
         # ── Model turn: may contain tool invocations or a final answer ──────
         if "call_model" in chunk:
@@ -83,8 +88,11 @@ async def run_agent_traced(question: str) -> AgentTrace:
                                    else str(tool_msg.content),
                         )
                     )
+            if len(completed) >= MAX_TOOL_CALLS:
+                truncated = True
+                break
 
-    return AgentTrace(answer=final_answer, tool_calls=completed)
+    return AgentTrace(answer=final_answer, tool_calls=completed, truncated=truncated)
 
 
 def run_agent_traced_sync(question: str) -> AgentTrace:

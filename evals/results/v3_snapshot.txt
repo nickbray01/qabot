@@ -1,0 +1,94 @@
+================================================================================
+  AGENT SNAPSHOT — VERSION 3, 4/3/2026
+  (architecture at time of v3 eval — changes from v2 noted)
+================================================================================
+
+  Model     : gpt-4o (temperature=0)  [unchanged]
+  Framework : LangGraph ReAct (langgraph.prebuilt ToolNode + tools_condition)  [unchanged]
+  State     : MessagesState  [unchanged]
+  Tool limit: 10 tool calls per question (added in v2 → v3 transition; enforced in runner.py)
+
+================================================================================
+  GRAPH ARCHITECTURE  [unchanged from v2]
+================================================================================
+
+  START → call_model → [tools_condition] → call_tools → call_model → … → END
+
+================================================================================
+  CHANGES FROM V2
+================================================================================
+
+  System prompt rules refined (agent.py) — no new tools added:
+
+  Rule 1 (Classification questions):
+    v2: "enumerate customers first, then read customer_artifacts per customer"
+    v3: Explicit ban on customer_artifacts-per-customer for classification.
+        Prescribes search-by-pattern instead:
+          (a) list_customers() → get account list
+          (b) search_artifacts("type A keywords") → find A-group customers
+          (c) search_artifacts("type B keywords") → find B-group customers
+          (d) Cross-reference; only artifact_full_text() on 1-2 samples per group.
+        Rationale: v2 triggered 13 customer_artifacts calls for q6, exhausting
+        the tool budget before any synthesis could happen.
+
+  Rule 2 (Competitive/risk questions):
+    v2: "use search_artifacts with competitor name or risk vocabulary"
+    v3: Prescribes looking up competitor names FIRST via sql_query on the
+        competitors table, then searching artifacts for the specific name.
+        Rationale: v2 agent searched with wrong customer (HelioFab instead of
+        BlueHarbor) because it guessed at vocabulary. Getting the actual
+        competitor name ("NoiseGuard") via sql_query makes the artifact search
+        deterministic.
+    Known bug (see below): competitor "EdgeCollector Co." contains a period
+        that survives _sanitize_fts, crashing FTS5 for q5 in v3.
+
+  Rule 3 (Pattern questions):
+    v3: Adds Phase 2 geographic check via list_customers(region/country=...) as
+        a fallback for customers missed by FTS sweeps. Also adds a 4th example
+        FTS query ("approval denied stuck wrong approver").
+        Rationale: v2 missed 3/7 Canada customers for q7.
+
+  Rule 9 (Quick-reference sequences):
+    Updated to match Rules 1–3 changes above.
+
+================================================================================
+  RESULTS vs v2
+================================================================================
+
+  Hard accuracy : 0/3 (v2) → 2/3 (v3)   [q6 ✓, q7 ✓, q5 still failing]
+  Avg tool calls: 4.4  (v2) → 3.1  (v3)
+  Sources found : 6/7  (v2) → 6/7  (v3)  [unchanged]
+  Correct       : 4/7  (v2) → 6/7  (v3)
+
+  q5 regression: was 0.40 (wrong customer, 3 tool calls) →
+                 now 0.00 (crash before any tool call, tools=0)
+                 Root cause: see Known Bug below.
+
+================================================================================
+  KNOWN BUG IN V3 — q5 crash
+================================================================================
+
+  Error   : OperationalError: fts5: syntax error near "."
+  Trigger : competitors table contains "EdgeCollector Co." (has a period).
+            Agent follows Rule 2: calls sql_query to fetch competitors, gets
+            "EdgeCollector Co.", then calls search_artifacts("EdgeCollector Co.").
+            _sanitize_fts() strips [-":*()\[\]{}|&^!] but NOT periods.
+            The period reaches the FTS5 MATCH clause → SQLite OperationalError.
+  Propagation: OperationalError is not caught by LangGraph's ToolNode and
+            bubbles out of graph.astream() entirely, so runner.py records
+            tools=0 and the exception lands in evaluate_case's error field.
+  Fix     : Add '.' to the character class in _sanitize_fts() in tools.py.
+
+================================================================================
+  TOOLS  (7 total — unchanged from v2)
+================================================================================
+
+  1. list_customers(region, industry, crm_stage, product, limit=100)
+  2. search_artifacts(query, limit=10)
+  3. find_pattern_across_customers(query, limit=50)
+  4. customer_artifacts(name_or_id)
+  5. scenario_summary_tool(scenario_id)
+  6. artifact_full_text(artifact_id)
+  7. sql_query(sql)
+
+================================================================================

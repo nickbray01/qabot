@@ -33,7 +33,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from evals.judge import JudgeVerdict, check_sources, judge_answer
-from evals.runner import AgentTrace, run_agent_traced
+from evals.runner import MAX_TOOL_CALLS, AgentTrace, run_agent_traced
 from evals.test_cases import TEST_CASES, EvalCase
 
 
@@ -71,6 +71,8 @@ async def evaluate_case(case: EvalCase) -> EvalResult:
 
     try:
         trace = await run_agent_traced(case.question)
+        if trace.truncated:
+            error = f"Tool call limit ({MAX_TOOL_CALLS}) exceeded — agent did not finish"
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"
 

@@ -1,0 +1,152 @@
+================================================================================
+  AGENT SNAPSHOT — VERSION 4, 4/4/2026
+================================================================================
+
+  Model     : gpt-4o (temperature=0)
+  Framework : LangGraph ReAct (langgraph.prebuilt ToolNode + tools_condition)
+  State     : MessagesState (message list)
+  Tool limit: 10 tool calls per question (enforced in evals/runner.py)
+
+================================================================================
+  GRAPH ARCHITECTURE
+================================================================================
+
+  Nodes:
+    call_model   — invokes gpt-4o with system prompt + bound tools
+    call_tools   — ToolNode executing whichever tools the model requested
+
+  Edges:
+    START → call_model
+    call_model → [tools_condition] → call_tools   (if tool calls present)
+                                   → END           (if no tool calls)
+    call_tools → call_model
+
+  Pattern: standard ReAct loop — model reasons, calls tools, loops until done
+           or the 10-call limit is hit.
+
+================================================================================
+  SYSTEM PROMPT
+================================================================================
+
+  Role: Analyst assistant for a B2B software company.
+
+  Database schema exposed to the model:
+    scenarios      — scenario_id, industry, region, primary_product_id,
+                     primary_competitor_id, trigger_event, pain_point,
+                     scenario_summary
+    customers      — customer_id, scenario_id, name, industry, subindustry,
+                     region, country, crm_stage, account_health, notes
+    implementations — implementation_id, customer_id, scenario_id, status,
+                     contract_value, deployment_model
+    artifacts      — artifact_id, customer_id, scenario_id, artifact_type,
+                     title, summary, content_text, created_at
+    products       — product_id, name, category, pricing_model
+    company_profile — name, category, headquarters, founding_year
+    competitors    — name, segment, pricing_position
+    employees      — department (and others)
+
+  FTS index: artifacts_fts covers title, summary, content_text.
+
+  Search strategy rules (10 rules):
+
+  Rule 1 — Geographic/segment + classification questions:
+    Call list_customers() first to enumerate the exact account set.
+    For "classify A vs B" questions: do NOT call customer_artifacts() per
+    customer. Instead:
+      (a) list_customers() → account list
+      (b) search_artifacts("type A keywords") → A-group
+      (c) search_artifacts("type B keywords") → B-group
+      (d) Cross-reference; artifact_full_text() on 1-2 samples per group only.
+
+  Rule 2 — Competitive/risk questions:
+    Step 1: sql_query("SELECT name, segment, pricing_position FROM competitors")
+            to get actual competitor names.
+    Step 2: search_artifacts("[competitor name]") to find affected customers.
+    Step 3: artifact_full_text() on top hits for milestone/risk details.
+    Never use sql_query() alone for competitive intelligence.
+
+  Rule 3 — Pattern/recurrence questions:
+    Phase 1: find_pattern_across_customers() ×4 with varied synonym queries,
+             merge customer sets.
+    Phase 2: list_customers(region/country=...) to enumerate the full account
+             list; for any customers missed by FTS, check customer_artifacts()
+             and confirm with artifact_full_text().
+
+  Rule 4 — Never stop after one empty/narrow result.
+    Rephrase and retry before concluding "none". Empty = vocabulary mismatch.
+
+  Rule 5 — artifact_full_text() selectively but decisively.
+    Fetch 2–4 artifacts directly relevant to the answer. Do not skip when
+    specific dates, milestones, names, or commands are needed.
+
+  Rule 6 — sql_query() only for structured aggregations.
+    Counts, numeric ranges, date filters, multi-table joins. Not for region
+    lookups, competitor mentions, or narrative patterns.
+
+  Rule 7 — find_pattern_across_customers() for "widespread?" questions.
+    Count distinct affected customers before drawing conclusions.
+
+  Rule 8 — Classify by reading artifacts, not by titles.
+    artifact_full_text() on at least one artifact per group to confirm.
+
+  Rule 9 — Quick-reference sequences:
+    Classify region accounts by problem type:
+      list_customers → search_artifacts(A) → search_artifacts(B) →
+      artifact_full_text() ×1-2 per group
+    Recurring pattern question:
+      find_pattern_across_customers() ×4 → list_customers(region) →
+      customer_artifacts() for gaps
+    Competitor defection risk:
+      sql_query(competitors) → search_artifacts([name]) →
+      artifact_full_text() on top hits
+    Single-customer deep-dive:
+      customer_artifacts() → artifact_full_text()
+
+  Rule 10 — Be concise but complete. Quote artifact content for specific dates,
+    milestones, commands, and named parties.
+
+================================================================================
+  TOOLS  (7 total)
+================================================================================
+
+  1. list_customers(region, industry, crm_stage, product, limit=100)
+     Enumerates customers with optional partial-match (LIKE) filters.
+     Joins customers → scenarios → products to expose primary_product name.
+     Returns: customer_id, name, industry, subindustry, region, crm_stage,
+              account_health, scenario_id, primary_product.
+
+  2. search_artifacts(query, limit=10)
+     FTS search across artifact title, summary, and content_text.
+     Returns: flat list of (id, type, title, summary, customer_id, scenario_id).
+     Note: special characters (including '.') stripped before FTS5 query.
+
+  3. find_pattern_across_customers(query, limit=50)
+     Same FTS search, results grouped by customer.
+     Returns: customers_affected count + artifact titles per customer.
+
+  4. customer_artifacts(name_or_id)
+     All artifacts for a known customer (by name or customer_id).
+     Returns: list of (id, type, title, summary, created_at).
+
+  5. scenario_summary_tool(scenario_id)
+     Full context for a scenario: scenario details, customer, implementation,
+     and all associated artifact stubs.
+
+  6. artifact_full_text(artifact_id)
+     Full content_text of a single artifact (300–1500 tokens each).
+
+  7. sql_query(sql)
+     Read-only SELECT against the SQLite database. Rejects non-SELECT statements.
+
+================================================================================
+  EVAL RESULTS SUMMARY
+================================================================================
+
+  Version  Correct  Score  Sources  Avg Tools  Easy  Hard
+  -------  -------  -----  -------  ---------  ----  ----
+  v1       5/7 71%  0.63   4/7 57%  2.4        4/4   1/3
+  v2       4/7 57%  0.66   6/7 86%  4.4        4/4   0/3
+  v3       6/7 86%  0.71   6/7 86%  3.1        4/4   2/3
+  v4       7/7 100% —      —        —          4/4   3/3  (pending run)
+
+================================================================================

@@ -1,0 +1,91 @@
+================================================================================
+  EVAL REPORT  — VERSION 4, 4/4/2026
+================================================================================
+
+  Total questions : 7
+  Correct answers : 7/7 (100%)
+  Sources found   : 7/7 (100%)
+  Avg answer score: 0.83
+  Avg tool calls  : 3.7
+  Easy accuracy   : 4/4
+  Hard accuracy   : 3/3
+
+ID                               Diff  Correct Score  Tools  Sources 
+---------------------------------------------------------------------
+q1_blueharbor_taxonomy           easy  ✓       0.80   2      ✓       
+q2_verdant_bay_patch             easy  ✓       1.00   3      ✓       
+q3_mapleharvest_quebec           easy  ✓       0.80   3      ✓       
+q4_aureum_scim                   easy  ✓       0.80   3      ✓       
+q5_blueharbor_defect_risk        hard  ✓       0.80   3      ✓       
+q6_na_west_taxonomy_vs_duplicate hard  ✓       0.80   7      ✓       
+q7_canada_approval_bypass        hard  ✓       0.80   5      ✓       
+
+================================================================================
+  DETAIL
+================================================================================
+
+  [q1_blueharbor_taxonomy]  (easy)  score=0.80  tools=2  4.1s
+  Q: which customer's issue started after the 2026-02-20 taxonomy rollout, and…
+  Tools used: search_artifacts → artifact_full_text
+  Sources ✓: BlueHarbor Logistics
+  Judge: The agent answer captures most key facts, including the customer
+         (BlueHarbor Logistics) and the proposed proof-of-fix plan, but it
+         includes additional details and slightly deviates from the
+         original timeline and success criteria.
+
+  [q2_verdant_bay_patch]  (easy)  score=1.00  tools=3  2.5s
+  Q: for Verdant Bay, what's the approved live patch window, and exactly how d…
+  Tools used: customer_artifacts → search_artifacts → artifact_full_text
+  Sources ✓: Verdant Bay
+  Judge: The agent answer captures all key facts from the reference, including the
+         approved live patch window and the rollback procedure, while also
+         providing additional relevant information about post-rollback
+         steps.
+
+  [q3_mapleharvest_quebec]  (easy)  score=0.80  tools=3  3.9s
+  Q: in the MapleHarvest Quebec pilot, what temporary field mappings are we pl…
+  Tools used: customer_artifacts → artifact_full_text → artifact_full_text
+  Sources ✓: MapleHarvest
+  Judge: The agent answer captures most key facts from the reference, including the
+         temporary field mappings and the purpose of the March 23
+         workshop, but it includes additional details and a minor omission
+         regarding the signed schema document's upload context.
+
+  [q4_aureum_scim]  (easy)  score=0.80  tools=3  4.2s
+  Q: what SCIM fields were conflicting at Aureum, and what fast fix did Jin pr…
+  Tools used: search_artifacts → search_artifacts → artifact_full_text
+  Sources ✓: Aureum
+  Judge: The agent answer captures most key facts, including the conflicting SCIM
+         fields and Jin's proposed fast fix, but it omits the mention of
+         SCIM tracing and the specific normalization into one canonical
+         field.
+
+  [q5_blueharbor_defect_risk]  (hard)  score=0.80  tools=3  4.5s
+  Q: which customer looks most likely to defect to a cheaper tactical competit…
+  Tools used: sql_query → search_artifacts → artifact_full_text
+  Sources ✓: BlueHarbor Logistics
+  Judge: The agent answer captures most key facts, including the customer
+         (BlueHarbor Logistics) and the competitor (NoiseGuard), but it
+         omits the specific date for the proof-of-fix and the exact
+         details of the milestone related to query logs and A/B testing.
+
+  [q6_na_west_taxonomy_vs_duplicate]  (hard)  score=0.80  tools=7  5.5s
+  Q: among the North America West Event Nexus accounts, which ones are really …
+  Tools used: list_customers → search_artifacts → search_artifacts → artifact_full_text → artifact_full_text → artifact_full_text → artifact_full_text
+  Sources ✓: Arcadia Cloudworks, BlueHarbor Logistics, CedarWind Renewables, HelioFab Systems, Pacific Health Network, Pioneer Freight Solutions, Helix Assemblies, LedgerBright Analytics, LedgerPeak Software, MedLogix Distribution, Peregrine Logistics Group, Pioneer Grid Retail
+  Judge: The agent's answer captures most key facts regarding the taxonomy/search
+         semantics and duplicate-action problems, including specific
+         accounts and issues. However, it omits some accounts from the
+         reference answer, such as Arcadia Cloudworks, CedarWind
+         Renewables, HelioFab Systems, and Peregrine Logistics Group.
+
+  [q7_canada_approval_bypass]  (hard)  score=0.80  tools=5  3.8s
+  Q: do we have a recurring Canada approval-bypass pattern across accounts, or…
+  Tools used: find_pattern_across_customers → find_pattern_across_customers → find_pattern_across_customers → find_pattern_across_customers → list_customers
+  Sources ✓: MapleBridge Insurance, Verdant Bay, Maple Regional Transit, MapleBay Marketplace, MapleFork Franchise, MaplePath Career, MapleWest Bank
+  Judge: The agent's answer captures most key facts from the reference, including
+         the recurring nature of the issue and the mention of affected
+         customers. However, it omits specific details about the types of
+         metadata issues and the exact consequences of the failures.
+
+================================================================================

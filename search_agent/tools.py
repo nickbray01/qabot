@@ -11,7 +11,7 @@ from langchain_core.tools import tool
 
 def _sanitize_fts(query: str) -> str:
     """Strip characters that cause FTS5 parse errors (colon filters, operators, etc.)."""
-    return re.sub(r'[-":*()\[\]{}|&^!]', ' ', query).strip()
+    return re.sub(r'[-":*()\[\]{}|&^!.]', ' ', query).strip()
 
 from database_utils.explore import (
     artifacts_for_customer,
@@ -71,6 +71,78 @@ def find_pattern_across_customers(query: str, limit: int = 50) -> str:
         "by_customer": {k: v for k, v in sorted(grouped.items())},
     }
     return json.dumps(result, indent=2)
+
+
+@tool
+def list_customers(
+    region: str = "",
+    industry: str = "",
+    crm_stage: str = "",
+    product: str = "",
+    limit: int = 100,
+) -> str:
+    """List customers filtered by region, industry, CRM stage, and/or product name.
+
+    Use this as your FIRST step for any question scoped to a geographic region,
+    market segment, CRM stage, or product. All filters are optional partial-match
+    (case-insensitive LIKE) — pass only the ones you need.
+    Returns customer_id, name, industry, subindustry, region, crm_stage,
+    account_health, scenario_id, and primary_product for each match.
+
+    Examples:
+      list_customers(region="North America West")
+      list_customers(region="Canada")
+      list_customers(product="Event Nexus", region="North America West")
+      list_customers(crm_stage="renewal")
+
+    Args:
+        region: Partial region string, e.g. "North America West" or "Canada".
+        industry: Partial industry string, e.g. "Logistics" or "Financial".
+        crm_stage: Partial CRM stage string, e.g. "renewal" or "escalation".
+        product: Partial product name, e.g. "Event Nexus" or "Signal Ingest".
+        limit: Maximum rows to return (default 100).
+    """
+    conditions: list[str] = []
+    params: list = []
+
+    if region:
+        conditions.append("c.region LIKE ?")
+        params.append(f"%{region}%")
+    if industry:
+        conditions.append("c.industry LIKE ?")
+        params.append(f"%{industry}%")
+    if crm_stage:
+        conditions.append("c.crm_stage LIKE ?")
+        params.append(f"%{crm_stage}%")
+    if product:
+        conditions.append("p.name LIKE ?")
+        params.append(f"%{product}%")
+
+    where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    params.append(limit)
+
+    rows = run(
+        f"""
+        SELECT
+            c.customer_id,
+            c.name,
+            c.industry,
+            c.subindustry,
+            c.region,
+            c.crm_stage,
+            c.account_health,
+            c.scenario_id,
+            p.name AS primary_product
+        FROM customers c
+        JOIN scenarios s ON s.scenario_id = c.scenario_id
+        JOIN products p ON p.product_id = s.primary_product_id
+        {where_clause}
+        ORDER BY c.name
+        LIMIT ?
+        """,
+        params=tuple(params),
+    )
+    return json.dumps([dict(r) for r in rows], indent=2)
 
 
 @tool

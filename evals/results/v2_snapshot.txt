@@ -1,0 +1,103 @@
+================================================================================
+  AGENT SNAPSHOT — VERSION 2, 4/3/2026
+  (architecture at time of v2 eval — changes from v1 noted)
+================================================================================
+
+  Model     : gpt-4o (temperature=0)  [unchanged]
+  Framework : LangGraph ReAct (langgraph.prebuilt ToolNode + tools_condition)  [unchanged]
+  State     : MessagesState  [unchanged]
+
+================================================================================
+  GRAPH ARCHITECTURE  [unchanged]
+================================================================================
+
+  Nodes:
+    call_model   — invokes gpt-4o with system prompt + bound tools
+    call_tools   — ToolNode executing whichever tools the model requested
+
+  Edges:
+    START → call_model
+    call_model → [tools_condition] → call_tools   (if tool calls present)
+                                   → END           (if no tool calls)
+    call_tools → call_model
+
+================================================================================
+  CHANGES FROM V1
+================================================================================
+
+  1. NEW TOOL: list_customers
+     Added to tools.py + _tools list in agent.py (see tool details below).
+     Directly fixes q6 failure (NA West accounts enumeration).
+
+  2. SYSTEM PROMPT rewritten (agent.py):
+     - Role changed: "QA analyst assistant" → "analyst assistant"
+     - Schema block updated to match actual DB columns (subindustry, account_health,
+       primary_product_id, country, etc.)
+     - 6 vague rules replaced with 10 targeted rules, each addressing a specific
+       failure mode observed in v1:
+         Rule 1  — geographic/segment questions: list_customers() first    [fixes q6]
+         Rule 2  — competitive/risk questions: search artifacts, not sql   [fixes q5]
+         Rule 3  — pattern questions: ≥3 FTS queries with varied vocab     [fixes q7]
+         Rule 4  — never stop after one empty/narrow result                [fixes q5,q6]
+         Rule 5  — artifact_full_text() selectively but decisively         [existing]
+         Rule 6  — sql_query() only for structured aggregations            [fixes q5]
+         Rule 7  — find_pattern_across_customers() for "widespread?" Qs    [existing]
+         Rule 8  — classify by reading artifacts, not titles              [fixes q6]
+         Rule 9  — prescribed tool sequences per question type             [all]
+         Rule 10 — quote artifact content when supporting specifics        [existing]
+
+================================================================================
+  TOOLS  (7 total — 1 added)
+================================================================================
+
+  1. list_customers(region, industry, crm_stage, product, limit=100)  [NEW]
+     Enumerates customers filtered by optional partial-match (LIKE) fields.
+     Joins customers → scenarios → products to expose primary_product name.
+     Returns: customer_id, name, industry, subindustry, region, crm_stage,
+              account_health, scenario_id, primary_product.
+     Use for: any question scoped to a region, segment, CRM stage, or product.
+     SQL: customers JOIN scenarios ON scenario_id JOIN products ON primary_product_id
+          with optional WHERE clauses using LIKE '%...%' on each filter param.
+
+  2. search_artifacts(query, limit=10)  [unchanged]
+     Full-text keyword search across artifact titles, summaries, and content.
+     Returns: flat list of (id, type, title, summary, customer_id, scenario_id).
+
+  3. find_pattern_across_customers(query, limit=50)  [unchanged]
+     FTS search grouped by customer — for "widespread or one-off?" questions.
+     Returns: customers_affected count + artifact titles per customer.
+
+  4. customer_artifacts(name_or_id)  [unchanged]
+     Returns all artifacts for a known customer (by name or customer_id).
+
+  5. scenario_summary_tool(scenario_id)  [unchanged]
+     Full context for a scenario in one shot (scenario, customer, impl, artifacts).
+
+  6. artifact_full_text(artifact_id)  [unchanged]
+     Fetches full content_text of a single artifact.
+
+  7. sql_query(sql)  [unchanged]
+     Read-only SELECT against the SQLite database.
+
+================================================================================
+  V1 FAILURE ANALYSIS & EXPECTED FIXES
+================================================================================
+
+  q5 (defect risk, was 0.00):
+    Was: agent called sql_query → "no at-risk customers"
+    Fix: Rule 2 directs agent to search_artifacts with competitive/risk vocabulary
+         ("NoiseGuard", "tactical", "cheaper") to find the signal in artifact text.
+
+  q6 (NA West taxonomy vs duplicate, was 0.00):
+    Was: agent called sql_query → "no customers in specified region"
+    Fix: list_customers(region="North America West") returns all 12 accounts
+         deterministically. Rule 1 enforces this two-phase pattern: enumerate
+         customers first, then classify by reading their artifacts (Rule 8).
+
+  q7 (Canada approval bypass, was 0.80 — missed 5/7 customers):
+    Was: single find_pattern_across_customers call with narrow vocabulary
+    Fix: Rule 3 requires ≥3 FTS passes with varied synonyms ("approval bypass",
+         "approval routing precedence", "stale cache schema propagation approval")
+         and merging the customer sets before concluding.
+
+================================================================================

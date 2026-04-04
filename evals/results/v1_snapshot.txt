@@ -1,0 +1,78 @@
+================================================================================
+  AGENT SNAPSHOT — VERSION 1, 4/3/2026
+  (architecture at time of v1.txt eval results)
+================================================================================
+
+  Model     : gpt-4o (temperature=0)
+  Framework : LangGraph ReAct (langgraph.prebuilt ToolNode + tools_condition)
+  State     : MessagesState (message list)
+
+================================================================================
+  GRAPH ARCHITECTURE
+================================================================================
+
+  Nodes:
+    call_model   — invokes gpt-4o with system prompt + bound tools
+    call_tools   — ToolNode executing whichever tools the model requested
+
+  Edges:
+    START → call_model
+    call_model → [tools_condition] → call_tools   (if tool calls present)
+                                   → END           (if no tool calls)
+    call_tools → call_model
+
+  Pattern: standard ReAct loop — model reasons, calls tools, loops until done.
+
+================================================================================
+  SYSTEM PROMPT (summary)
+================================================================================
+
+  Role: QA analyst assistant for a B2B software company.
+  DB:   SQLite with tables: scenarios, customers, implementations, artifacts,
+        products, company_profile, competitors, employees.
+  FTS:  artifacts_fts index covers title, summary, content_text.
+
+  Prescribed search strategy (as written in prompt):
+    1. Start with search_artifacts() or find_pattern_across_customers().
+    2. For "widespread vs one-off" questions, always use find_pattern_across_customers()
+       BEFORE drawing conclusions.
+    3. Use artifact_full_text() only for directly relevant artifacts.
+    4. Use sql_query() for structured filtering (dates, counts, joins).
+    5. Never conclude after reading only one result — broaden first.
+    6. Be concise but complete; quote/paraphrase artifact content when useful.
+
+================================================================================
+  TOOLS  (6 total)
+================================================================================
+
+  1. search_artifacts(query, limit=10)
+     Full-text keyword search across artifact titles, summaries, and content.
+     Returns: flat list of (id, type, title, summary, customer_id, scenario_id).
+     Notes:   special characters stripped via _sanitize_fts() before FTS5 query.
+
+  2. find_pattern_across_customers(query, limit=50)
+     Same FTS search, but groups results by customer.
+     Returns: customers_affected count + artifact titles per customer.
+     Use for: "is this widespread or a one-off?" questions.
+
+  3. customer_artifacts(name_or_id)
+     Returns all artifacts for a specific customer (by name or customer_id).
+     Returns: list of (id, type, title, summary, created_at).
+     Use when: customer is already known and full artifact list is needed.
+
+  4. scenario_summary_tool(scenario_id)
+     Returns full context for a scenario in one shot: scenario details,
+     customer, implementation, and all associated artifacts.
+     Use when: scenario_id is known and broad context is needed.
+
+  5. artifact_full_text(artifact_id)
+     Fetches full content_text of a single artifact.
+     Use after: search_artifacts or customer_artifacts to read the actual doc.
+     Note:      artifacts are 300–1500 tokens; fetch only directly relevant ones.
+
+  6. sql_query(sql)
+     Executes a read-only SELECT against the SQLite database.
+     Use for: structured filtering, aggregation, multi-table joins.
+     Safety:  rejects any statement not starting with SELECT.
+
+================================================================================
