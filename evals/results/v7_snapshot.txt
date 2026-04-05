@@ -1,0 +1,264 @@
+================================================================================
+  AGENT SNAPSHOT — VERSION 7, 4/5/2026
+================================================================================
+
+  Model     : gpt-4o (temperature=0)
+  Framework : LangGraph ReAct (langgraph.prebuilt ToolNode + tools_condition)
+  State     : MessagesState (message list)
+  Tool limit: 10 tool calls per question (enforced in evals/runner.py)
+
+  Change from v6: Three bug fixes in search_agent/tools.py and a restored
+  tool (sql_query). System prompt expanded from ~250 to ~350 words to add
+  explicit read() mandates, exact DB enum values, and cross-account
+  classification recipes.
+
+================================================================================
+  GRAPH ARCHITECTURE
+================================================================================
+
+  Nodes:
+    call_model   — invokes gpt-4o with system prompt + bound tools
+    call_tools   — ToolNode executing whichever tools the model requested
+
+  Edges:
+    START → call_model
+    call_model → [tools_condition] → call_tools   (if tool calls present)
+                                   → END           (if no tool calls)
+    call_tools → call_model
+
+  Pattern: standard ReAct loop — model reasons, calls tools, loops until done
+           or the 10-call limit is hit.
+
+================================================================================
+  SYSTEM PROMPT
+================================================================================
+
+  Role: Analyst assistant for a B2B software company.
+
+  Tools described inline (four tools):
+
+  search(query, ...)
+    Full-text search over all artifact content. Returns matching artifacts with
+    a content snippet. Use as first move for almost every content question.
+    Set group_by_customer=True for pattern or classification questions.
+    Filters: customer_name, region, crm_stage, artifact_type.
+
+  read(artifact_ids)
+    Returns FULL content for one or more artifacts by ID. Pass multiple IDs in
+    a single call.
+    ** New in v7 ** ALWAYS call read() when the question asks for specific
+    technical values: field names, commands, exact percentages, exact dates,
+    action-item owners, step-by-step plans. Snippets are teasers — never try
+    to answer a detail question from a snippet alone.
+
+  lookup(entity, ...)
+    Structured row lookup — no FTS. Use for enumerating customers by
+    region/CRM stage, competitor profiles, employee lookups, artifact metadata.
+    entity values: "customers", "competitors", "employees", "artifacts"
+    ** New in v7 ** NOTE: region values in the DB are exactly:
+      'ANZ', 'Canada', 'Nordics', 'North America West'
+
+  sql_query(sql)
+    ** New in v7, restored from v4/v5 **
+    Execute a read-only SELECT. Use when lookup() filters aren't enough —
+    exact region match, multi-table joins, or aggregations.
+    Tables: customers, artifacts, competitors, employees, implementations,
+            scenarios, products. Schema documented inline.
+
+  Decision rules (7):
+
+  Rule 1 — Start with search() for content questions; start with lookup() or
+    sql_query() for enumeration (customer lists, competitor profiles,
+    employee records).
+
+  Rule 2 (strengthened vs v6) — After search(), if the question asks for
+    specific field names, commands, exact numbers, owners, or multi-step
+    plans: call read() on the top relevant artifact IDs. Do NOT try to answer
+    from snippets when specific values are required.
+
+  Rule 3 — For "is this widespread?" or "which accounts share X?", use
+    search(group_by_customer=True) then read() the top artifact IDs to verify
+    and enrich each account's situation.
+
+  Rule 4 (new in v7) — For cross-account classification (e.g. "which are
+    taxonomy problems vs duplicate problems"), use search(group_by_customer=True)
+    with targeted keywords for each category, then read() representative
+    artifacts to confirm the classification.
+
+  Rule 5 — For exact action items, owners, or dates: use
+    artifact_type="internal_communication" to target Slack threads, which
+    contain the most precise action-item lists.
+
+  Rule 6 (new in v7) — Use sql_query() when you need exact column values
+    (e.g. region = 'North America West'), aggregations, or joins not covered
+    by lookup().
+
+  Rule 7 — If search returns no results, rephrase with different/simpler
+    keywords before concluding the data doesn't exist — empty results mean
+    vocabulary mismatch.
+
+================================================================================
+  TOOLS  (4 total)
+================================================================================
+
+  1. search(query, customer_name="", region="", crm_stage="", artifact_type="",
+            limit=10, snippet_chars=400, group_by_customer=False)
+     FTS over artifact title, summary, and content_text. Returns matching
+     artifacts with a content snippet. Set group_by_customer=True to group
+     results by customer, each entry includes artifact_count, artifact_ids,
+     artifact_titles, and a top_snippet. All filters are partial-match (LIKE).
+
+     ** Fixed in v7 (Bug 1) ** snippet() auxiliary function call corrected:
+       snippet(f, 2, ...)  →  snippet(artifacts_fts, 2, ...)
+       SQLite FTS5 auxiliary functions require the real table name, not a table
+       alias. The alias 'f' was treated as a column name, causing every search()
+       call to raise sqlite3.OperationalError: no such column: f. LangGraph's
+       ToolNode caught the exception and returned it as a ToolMessage, causing
+       the LLM to hallucinate answers rather than erroring visibly.
+
+     ** New in v7 (Bug 2 fix) ** Progressive FTS query fallback via
+       _fts_candidates():
+       FTS5 AND-mode requires ALL query tokens to appear in a document. Agent
+       queries often include paraphrased words absent from documents (e.g.
+       "issue" vs "degradation"), silently excluding correct results. The fix
+       builds a ladder of progressively shorter AND-mode queries:
+         1. Full sanitized query
+         2. Drop pure numeric tokens (date fragments: '02', '20', '2026')
+         3. Drop trailing tokens one at a time to a 2-token minimum
+       search() tries each in order, stopping at the first with ≥ 3 results.
+       This preserves AND precision for specific queries while recovering
+       gracefully when the agent paraphrases.
+
+       Example: "taxonomy rollout issue" fails AND-mode (BlueHarbor has no
+       "issue" in its docs; CedarWind does) → fallback to "taxonomy rollout"
+       → BlueHarbor #1, 2, 3.
+
+  2. read(artifact_ids: list[str])
+     Fetch full content of one or more artifacts by ID in a single call.
+     Returns: artifact_id, artifact_type, title, content_text, customer_name.
+     Unchanged from v6.
+
+  3. lookup(entity, name="", region="", crm_stage="", industry="",
+            department="", limit=100)
+     Structured row lookup. entity values and what 'name' means:
+       "customers"   — filters by customer name; also accepts region, crm_stage,
+                       industry
+       "competitors" — filters by competitor name; returns full profile
+       "employees"   — filters by employee name; also accepts department, region
+       "artifacts"   — filters by customer name; returns metadata (no body text)
+     Unchanged from v6. Note: lookup uses LIKE for region, which fails for
+     partial region abbreviations (e.g. "NA West" does not match "North America
+     West"). Use sql_query() for exact region matches.
+
+  4. sql_query(sql)  ← RESTORED from v4/v5, removed in v6
+     Read-only SELECT against the SQLite database. Rejects non-SELECT statements.
+     Full schema documented inline in the tool docstring.
+
+     Why it was needed: In v6, the agent called lookup(region="NA West") for
+     q6 (NA West classification). LIKE '%NA West%' does not match the DB value
+     'North America West', returning 0 rows. sql_query() allows exact matches
+     and joins the lookup tool cannot express.
+
+================================================================================
+  BUGS FIXED IN THIS VERSION
+================================================================================
+
+  Bug 1 — snippet() alias error (search_agent/tools.py)
+    Symptom : sqlite3.OperationalError: no such column: f on every search() call.
+              LangGraph ToolNode caught and returned error as ToolMessage;
+              the LLM continued but had no real search results.
+    Root cause : snippet(f, 2, ...) uses the table alias 'f'; FTS5 auxiliary
+              functions require the unaliased virtual table name.
+    Fix       : snippet(f, ...)  →  snippet(artifacts_fts, ...)
+    Impact    : q1, q3, q5, q6, q13, q17 were all affected. This single bug
+              was responsible for the bulk of the v6 regression.
+
+  Bug 2 — FTS AND-mode vocabulary mismatch (search_agent/tools.py)
+    Symptom : Correct customer not found when agent's query words differ from
+              document vocabulary. q1: "taxonomy rollout issue" matches
+              CedarWind (has "issue"), not BlueHarbor (says "degradation").
+    Root cause : FTS5 requires ALL tokens to match (AND semantics). One
+              unexpected word eliminates correct documents entirely.
+    Fix       : _fts_candidates() progressive fallback — tries full query,
+              then drops numeric tokens, then drops trailing tokens one at a
+              time until ≥ 3 results or only 2 tokens remain.
+    Impact    : q1, q3, q5 — all require the agent to discover a customer by
+              topic rather than name, making them sensitive to paraphrasing.
+
+  Bug 3 — Region filter mismatch for NA West (v6 design gap)
+    Symptom : q6 agent called lookup(region="NA West") → 0 rows returned.
+              DB stores region as 'North America West'; LIKE '%NA West%' has
+              no substring match.
+    Fix       : Restored sql_query() tool + added exact region values to both
+              the sql_query docstring and the system prompt lookup NOTE.
+    Impact    : q6 went from 0.00 to 0.80.
+
+================================================================================
+  EVAL RESULTS SUMMARY
+================================================================================
+
+  Version  Questions  Correct    Score  Sources    Avg Tools  Easy    Hard
+  -------  ---------  -------    -----  -------    ---------  ----    ----
+  v1       7          5/7  71%   0.63   4/7  57%   2.4        4/4     1/3
+  v2       7          4/7  57%   0.66   6/7  86%   4.4        4/4     0/3
+  v3       7          6/7  86%   0.71   6/7  86%   3.1        4/4     2/3
+  v4       7          7/7 100%   —      —          —          4/4     3/3
+  v5       19         14/19 74%  0.72   17/19 89%  3.4        11/13   3/6
+  v6       19         9/19  47%  0.57   12/19 63%  2.6        8/13    1/6
+  v7       19         16/19 84%  0.83   16/19 84%  2.2        12/13   4/6
+
+  v7 vs v6 deltas (question-level):
+
+    Improvements:
+      q1  (easy): 0.00 → 0.80  Bug 1 + Bug 2 fixed; agent now finds BlueHarbor
+                                via search → read
+      q3  (easy): 0.00 → 0.80  Bug 1 + Bug 2 fixed; agent reads full artifact
+                                for field mappings
+      q6  (hard): 0.00 → 0.80  Bug 3 fixed; sql_query + classify-by-search
+                                recipe now available
+      q8  (easy): 0.60 → 1.00  Bug 1 fix; agent now reads full artifact and
+                                reports all success metrics
+      q12 (easy): 0.60 → 0.80  Bug 1 fix; agent now reads full artifact
+      q13 (easy): 0.00 → 0.60  Bug 1 fix; agent finds NordChemica now (still
+                                partial — 30-day target paraphrased incorrectly)
+      q17 (hard): 0.00 → 1.00  Bug 1 fix; multi-name FTS now resolves correctly
+      q19 (hard): 0.40 → 0.80  Bug 1 fix; agent retrieves complete action item
+                                timeline
+
+    Unchanged (already passing):
+      q2, q4, q7, q9, q10, q11, q14, q15, q16
+
+    Remaining failures:
+      q5  (hard): 0.20 → 0.20  Agent still surfaces Pioneer Freight instead of
+                                BlueHarbor for the "defect risk" question.
+                                Search now finds BlueHarbor but the agent reads
+                                a Pioneer artifact first and stops. Needs better
+                                multi-document synthesis or stronger prompt
+                                guidance for competitive risk questions.
+      q18 (hard): 0.80 → 0.80  lookup returns correct CRM stage rows but agent
+                                incorrectly includes accounts whose account_health
+                                is not 'recovering'. Needs read/sql verification
+                                step or clearer prompt about the crm_stage filter.
+
+================================================================================
+  KNOWN LIMITATIONS / NEXT STEPS
+================================================================================
+
+  q5 (hard — BlueHarbor defect risk):
+    The search → read path now correctly surfaces BlueHarbor + NoiseGuard
+    artifacts. The agent reads a Pioneer Freight artifact first (also has
+    taxonomy + competitor content) and concludes too early. Possible fixes:
+      (a) Add a competitor-risk recipe to the system prompt (like v5 Rule 2)
+          that instructs: sql_query(competitors) → search by competitor name →
+          read customer artifact.
+      (b) Strengthen Rule 2 to require reading multiple top hits before
+          concluding on "which customer" identity questions.
+
+  q18 (hard — escalation recovery cross-region):
+    lookup(crm_stage="escalation recovery") correctly returns all 8 accounts.
+    The agent then lists them with incorrect account_health labels (confusing
+    account_health and crm_stage semantics). Fix: expose account_health in
+    the answer or instruct the agent to note that crm_stage and account_health
+    are independent fields.
+
+================================================================================

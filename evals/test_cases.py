@@ -232,4 +232,362 @@ TEST_CASES: list[EvalCase] = [
         difficulty="hard",
         tags=["approval", "bypass", "Canada", "pattern"],
     ),
+    # ── Easy queries (Nordics / ANZ) ────────────────────────
+    EvalCase(
+        id="q8_nordfryst_renewal_terms",
+        question=(
+            "what commercial concession did Northstar offer NordFryst at renewal, "
+            "and what are the success targets for the 90-day pilot?"
+        ),
+        expected_answer=(
+            "Northstar offered NordFryst an 8% renewal discount upfront, with an additional "
+            "conditional 4% rebate if success metrics are met within 90 days. The two success "
+            "metrics are: 60% reduction in correlated alert volume and MTTA for critical "
+            "refrigeration incidents reduced to under 10 minutes."
+        ),
+        expected_customers=["NordFryst AB"],
+        key_facts=[
+            "NordFryst",
+            "8%",
+            "4%",
+            "conditional",
+            "60%",
+            "MTTA",
+            "10",
+            "90",
+        ],
+        difficulty="easy",
+        tags=["renewal", "commercial", "Nordics", "alert noise"],
+    ),
+    EvalCase(
+        id="q9_nordchemica_suppression_bundle",
+        question=(
+            "what exactly is in the suppression tuning bundle Northstar is delivering to "
+            "NordChemica on 2026-03-22, and what is the rollback mechanism if something goes wrong?"
+        ),
+        expected_answer=(
+            "The bundle includes: EN-DEDUPE settings with a 5-minute sliding window grouped by "
+            "service+host+event_type; Rules Evaluation Engine changes that add per-host rate limits "
+            "(heartbeat-missing-v1 capped at 1 alert per minute) and convert temp-thresholds-v1 "
+            "from instantaneous to aggregated counts over 5 minutes; and SI-ETL-FILTER transforms "
+            "to strip or hash session_id fields for PLC sensors where not required. The rollback "
+            "mechanism is a feature-flag in the rules engine that reverts to the prior configuration "
+            "within 15 minutes."
+        ),
+        expected_customers=["NordChemica AB"],
+        key_facts=[
+            "NordChemica",
+            "EN-DEDUPE",
+            "5-minute sliding window",
+            "heartbeat-missing-v1",
+            "temp-thresholds-v1",
+            "SI-ETL-FILTER",
+            "session_id",
+            "15 minutes",
+            "feature-flag",
+        ],
+        difficulty="easy",
+        tags=["alert noise", "suppression", "Nordics", "ops"],
+    ),
+    EvalCase(
+        id="q10_drs_hysteresis_pilot",
+        question=(
+            "for the Department of Regional Services, what scoring hysteresis rule did "
+            "Isabella propose to fix the confidence threshold flip-flopping, and what is "
+            "the pilot's target override rate?"
+        ),
+        expected_answer=(
+            "Isabella Rossi proposed requiring a score above 0.62 for 3 consecutive correlated "
+            "events within a 10-minute window before auto-routing — this prevents flip-flopping "
+            "around the original threshold of 0.6. The 4-week pilot starts 2026-03-22 across "
+            "10 exception classes and targets a manual override rate of no more than 15 percent."
+        ),
+        expected_customers=["Department of Regional Services (DRS)"],
+        key_facts=[
+            "0.62",
+            "3 consecutive",
+            "10-minute",
+            "15%",
+            "2026-03-22",
+            "Isabella",
+            "hysteresis",
+            "0.6",
+        ],
+        difficulty="easy",
+        tags=["scoring", "pilot", "ANZ", "compliance"],
+    ),
+    EvalCase(
+        id="q11_northpoint_provisioning_failures",
+        question=(
+            "what triggered the role provisioning degradation at Northpoint Apparel, and "
+            "what are the two main failure modes in the failed mapping events?"
+        ),
+        expected_answer=(
+            "The trigger was an HR-led org restructure effective 2026-02-15, after which median "
+            "provisioning time jumped from 3.5 hours to roughly 18 hours, impacting access at 120 "
+            "stores. The two main failure modes are: (1) the role attribute is missing entirely in "
+            "ServiceNow 'store' catalog webhooks, accounting for about 30 percent of failures; and "
+            "(2) the role is present under the legacy key `job_code` for the corporate catalog "
+            "instead of the expected attribute."
+        ),
+        expected_customers=["Northpoint Apparel Pty Ltd"],
+        key_facts=[
+            "Northpoint Apparel",
+            "2026-02-15",
+            "3.5",
+            "18",
+            "120 stores",
+            "job_code",
+            "ServiceNow",
+            "store catalog",
+        ],
+        difficulty="easy",
+        tags=["SCIM", "provisioning", "ANZ", "identity"],
+    ),
+    EvalCase(
+        id="q12_laurentia_schema_mitigation",
+        question=(
+            "for Province of Laurentia, what was the immediate mitigation for the rejected "
+            "events from the Laurentia-East regional launch, and what renewal offer is on the table?"
+        ),
+        expected_answer=(
+            "The immediate mitigation is a permissive SI-ETL-FILTER transform that allows unknown "
+            "fields through while replicating them to a quarantined topic called `laurentia.unknown` "
+            "with 90-day retention, and sets OR-AUDIT-LOGS flags on each bypassed event. The renewal "
+            "offer is 160 complimentary engineering hours (approximately 2 engineer-weeks each from "
+            "Ingest and Orchestrator) if Laurentia signs a 12-month renewal by 2026-04-15."
+        ),
+        expected_customers=["Province of Laurentia — Department of Public Works"],
+        key_facts=[
+            "Laurentia",
+            "SI-ETL-FILTER",
+            "laurentia.unknown",
+            "90",
+            "OR-AUDIT-LOGS",
+            "160",
+            "2026-04-15",
+            "12-month",
+        ],
+        difficulty="easy",
+        tags=["schema", "ingest", "Canada", "renewal", "commercial"],
+    ),
+    # ── Gap coverage ────────────────────────────────────────────────────────────
+    EvalCase(
+        id="q13_nordchemica_commercial_concession",
+        question=(
+            "what commercial concession did Northstar offer NordChemica during the "
+            "procurement negotiation, and what specific success metric would trigger "
+            "the credit?"
+        ),
+        expected_answer=(
+            "Northstar offered NordChemica a conditional 6% credit, approved by Ava Tran. "
+            "The credit is tied to SIQ metrics: the trigger is whether NordChemica's "
+            "30-day target is met — specifically, actionable alerts must fall to "
+            "500 or fewer per day within 30 days of the suppression bundle going live, "
+            "with MTTA below 8 minutes and no missed P1 incidents."
+        ),
+        expected_customers=["NordChemica AB"],
+        key_facts=[
+            "NordChemica",
+            "6%",
+            "conditional",
+            "500",
+            "30",
+            "MTTA",
+            "8",
+        ],
+        difficulty="easy",
+        tags=["commercial", "pricing", "Nordics", "alert noise"],
+    ),
+    EvalCase(
+        id="q14_sentinelops_phase0_config",
+        question=(
+            "according to the SentinelOps design review, what are the specific Phase 0 "
+            "config-level changes to fix the enrichment bottleneck, and what median "
+            "snapshot latency does Phase 0 target?"
+        ),
+        expected_answer=(
+            "Phase 0 has three changes: (1) deploy an SI-ETL-FILTER dedupe rule at ingest "
+            "that computes event_hash and drops strict duplicates within a 120-second window; "
+            "(2) add write-gating for enrichment results using an idempotency check on "
+            "event_hash plus enrichment_version to prevent duplicate derived writes; "
+            "(3) tune enrichment parallelism and pod resource requests for immediate throughput "
+            "improvement. Phase 0 targets median snapshot latency of 6 to 12 minutes."
+        ),
+        expected_customers=["SentinelOps AB"],
+        key_facts=[
+            "SentinelOps",
+            "SI-ETL-FILTER",
+            "event_hash",
+            "120",
+            "idempotency",
+            "enrichment_version",
+            "6",
+            "12",
+        ],
+        difficulty="easy",
+        tags=["technical", "config", "Nordics", "ingest"],
+    ),
+    EvalCase(
+        id="q15_noiseguard_competitor_profile",
+        question=(
+            "what is NoiseGuard's pricing position, and what are its key strengths "
+            "and weaknesses as a competitor — not in terms of deal risk, just as a "
+            "product profile?"
+        ),
+        expected_answer=(
+            "NoiseGuard sits in the low-to-mid pricing segment. Its strengths are fast, "
+            "easy deployment (can be operational in hours for basic suppression rules), "
+            "good for tactical noise reduction, and a simple UI with low operational overhead "
+            "for basic dedupe use cases. Its weaknesses are that it is not a full observability "
+            "stack, offers limited automations and minimal runbook or orchestration features, "
+            "is not schema-aware so it cannot reconcile taxonomy mismatches or re-weight search "
+            "indexes, and has a smaller integration surface that may require custom plumbing to "
+            "feed dedupe decisions back into downstream systems."
+        ),
+        expected_customers=[],
+        key_facts=[
+            "NoiseGuard",
+            "Low-mid",
+            "Easy to deploy",
+            "tactical noise reduction",
+            "Not a full observability stack",
+            "Limited automations",
+            "schema",
+        ],
+        difficulty="easy",
+        tags=["competitor", "pricing", "NoiseGuard"],
+    ),
+    EvalCase(
+        id="q16_nordfryst_action_item_owners",
+        question=(
+            "after the NordFryst renewal negotiation call, who owns the ML trial "
+            "provisioning and the commercial amendment drafting action items, and "
+            "what are their respective due dates?"
+        ),
+        expected_answer=(
+            "Isabella Rossi owns provisioning the ML Anomaly Scoring trial in Signal Insights, "
+            "due 2026-03-25. Liam O'Connor owns drafting the commercial amendment — the 8% "
+            "renewal discount plus the conditional 4% rebate language — due 2026-03-24."
+        ),
+        expected_customers=["NordFryst AB"],
+        key_facts=[
+            "Isabella Rossi",
+            "2026-03-25",
+            "ML",
+            "Liam O'Connor",
+            "2026-03-24",
+            "amendment",
+        ],
+        difficulty="easy",
+        tags=["employee attribution", "Nordics", "renewal", "commercial"],
+    ),
+    EvalCase(
+        id="q17_alert_noise_pilot_scale_pattern",
+        question=(
+            "NordFryst, NordChemica, and SentinelOps all escalated around the same "
+            "period with similar operational problems. What is the shared root cause "
+            "pattern across these three accounts?"
+        ),
+        expected_answer=(
+            "All three share a pilot-threshold-at-scale pattern: configurations tuned "
+            "during small pilots were never revalidated before scaling to production. "
+            "NordFryst had refrigeration alert thresholds set for a 3-site pilot that were "
+            "too sensitive at 300 sites, with intermittent-connectivity replay bursts "
+            "amplifying the storm. NordChemica had thresholds from a 20-host pilot that "
+            "exploded to ~12,000 alerts per day at ~1,200 hosts, worsened by high-cardinality "
+            "syslog and session_id fields. SentinelOps expanded Signal Ingest from 10 to 28 "
+            "collectors on 2026-02-10 without adjusting enrichment capacity, causing CPU "
+            "saturation and 20-45 minute executive dashboard delays from duplicate events and "
+            "EdgeCollector backfill behaviour."
+        ),
+        expected_customers=["NordFryst AB", "NordChemica AB", "SentinelOps AB"],
+        key_facts=[
+            "NordFryst",
+            "NordChemica",
+            "SentinelOps",
+            "pilot",
+            "threshold",
+            "scale",
+            "12,000",
+            "28 collector",
+        ],
+        difficulty="hard",
+        tags=["alert noise", "multi-account", "Nordics", "pattern"],
+    ),
+    EvalCase(
+        id="q18_cross_region_escalation_recovery",
+        question=(
+            "which accounts across all regions currently have escalation recovery as "
+            "their CRM stage, and what region is each account in?"
+        ),
+        expected_answer=(
+            "There are eight escalation recovery accounts across two regions. In ANZ: "
+            "Aureum Payments Pty Ltd (recovering), Catalyst Careers Pty Ltd (healthy), "
+            "HarborHome Marketplace Pty Ltd (expanding), and Harvest Table Group (watch list). "
+            "In Canada: Aurora University System (healthy), MapleFork Franchise Systems "
+            "(watch list), MapleWest Bank (recovering), and Province of Laurentia — "
+            "Department of Public Works (at risk). No escalation recovery accounts appear "
+            "in the Nordics or NA West regions."
+        ),
+        expected_customers=[
+            "Aureum Payments",
+            "Catalyst Careers",
+            "HarborHome Marketplace",
+            "Harvest Table Group",
+            "Aurora University System",
+            "MapleFork Franchise",
+            "MapleWest Bank",
+            "Province of Laurentia",
+        ],
+        key_facts=[
+            "escalation recovery",
+            "ANZ",
+            "Canada",
+            "Aureum",
+            "Catalyst Careers",
+            "HarborHome",
+            "Harvest Table",
+            "Aurora University",
+            "MapleFork",
+            "MapleWest",
+            "Laurentia",
+        ],
+        difficulty="hard",
+        tags=["cross-region", "CRM stage", "escalation recovery"],
+    ),
+    EvalCase(
+        id="q19_nordfryst_remediation_timeline",
+        question=(
+            "what is the complete post-call action item timeline for NordFryst's alert "
+            "remediation and renewal plan — who does what, and by when?"
+        ),
+        expected_answer=(
+            "There are five action items. By 2026-03-20: Daniel Kim deploys the "
+            "sliding-window dedupe rule and expands the Temporal Correlator window from "
+            "2 minutes to 6 minutes during the production maintenance window "
+            "(02:00–04:00 CET), and Jin Park enables the per-site temporary rate cap "
+            "of 30 percent on replay traffic. By 2026-03-24: Liam O'Connor delivers the "
+            "draft commercial amendment covering the 8% renewal discount and conditional "
+            "4% rebate. By 2026-03-25: Isabella Rossi provisions the ML Anomaly Scoring "
+            "trial in Signal Insights. By 2026-04-30: Olivia Grant runs the compliance "
+            "export walkthrough with NordFryst."
+        ),
+        expected_customers=["NordFryst AB"],
+        key_facts=[
+            "Daniel Kim",
+            "2026-03-20",
+            "6m",
+            "Jin Park",
+            "rate cap",
+            "Liam O'Connor",
+            "2026-03-24",
+            "Isabella Rossi",
+            "2026-03-25",
+            "Olivia Grant",
+            "2026-04-30",
+        ],
+        difficulty="hard",
+        tags=["timeline", "milestone", "Nordics", "employee attribution"],
+    ),
 ]

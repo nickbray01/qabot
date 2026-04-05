@@ -128,19 +128,3 @@ _TOOL_LABELS: dict[str, str] = {
     "sql_query": "Running query",
 }
 
-
-# ```
-
-# And your `.env`:
-# ```
-# SLACK_BOT_TOKEN=xoxb-...
-# SLACK_SIGNING_SECRET=...
-# ```
-
-# And `.gitignore` — do this on day 1:
-# ```
-# .env
-# data/
-# __pycache__/
-# *.pyc
-# .chroma/

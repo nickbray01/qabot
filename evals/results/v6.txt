@@ -1,0 +1,206 @@
+================================================================================
+  EVAL REPORT  — 2026-04-05 06:57 UTC
+================================================================================
+
+  Total questions : 19
+  Correct answers : 9/19 (47%)
+  Sources found   : 12/19 (63%)
+  Avg answer score: 0.57
+  Avg tool calls  : 2.6
+  Easy accuracy   : 8/13
+  Hard accuracy   : 1/6
+
+ID                               Diff  Correct Score  Tools  Sources 
+---------------------------------------------------------------------
+q1_blueharbor_taxonomy           easy  ✗       0.00   1      ✗       
+q2_verdant_bay_patch             easy  ✓       1.00   2      ✓       
+q3_mapleharvest_quebec           easy  ✗       0.00   2      ✓       
+q4_aureum_scim                   easy  ✓       1.00   4      ✓       
+q5_blueharbor_defect_risk        hard  ✗       0.20   5      ✗       
+q6_na_west_taxonomy_vs_duplicate hard  ✗       0.00   1      ✗       
+q7_canada_approval_bypass        hard  ✓       0.80   1      ✗       
+q8_nordfryst_renewal_terms       easy  ✗       0.60   2      ✓       
+q9_nordchemica_suppression_bund… easy  ✓       0.80   2      ✓       
+q10_drs_hysteresis_pilot         easy  ✓       1.00   4      ✓       
+q11_northpoint_provisioning_fai… easy  ✓       1.00   4      ✓       
+q12_laurentia_schema_mitigation  easy  ✗       0.60   2      ✗       
+q13_nordchemica_commercial_conc… easy  ✗       0.00   2      ✗       
+q14_sentinelops_phase0_config    easy  ✓       1.00   2      ✓       
+q15_noiseguard_competitor_profi… easy  ✓       0.80   1      ✓       
+q16_nordfryst_action_item_owners easy  ✓       1.00   4      ✓       
+q17_alert_noise_pilot_scale_pat… hard  ✗       0.00   6      ✗       
+q18_cross_region_escalation_rec… hard  ✗       0.60   1      ✓       
+q19_nordfryst_remediation_timel… hard  ✗       0.40   3      ✓       
+
+================================================================================
+  DETAIL
+================================================================================
+
+  [q1_blueharbor_taxonomy]  (easy)  score=0.00  tools=1  1.7s
+  Q: which customer's issue started after the 2026-02-20 taxonomy rollout, and…
+  Tools used: search
+  Sources ✗: BlueHarbor Logistics
+  Judge: The agent answer does not address the question at all and fails to provide
+         any relevant information about the customer's issue or the
+         proposed proof plan.
+
+  [q2_verdant_bay_patch]  (easy)  score=1.00  tools=2  2.5s
+  Q: for Verdant Bay, what's the approved live patch window, and exactly how d…
+  Tools used: search → read
+  Sources ✓: Verdant Bay
+  Judge: The agent answer captures all key facts from the reference, including the
+         approved live patch window and the rollback procedure, while also
+         providing additional relevant details about post-rollback steps.
+
+  [q3_mapleharvest_quebec]  (easy)  score=0.00  tools=2  2.4s
+  Q: in the MapleHarvest Quebec pilot, what temporary field mappings are we pl…
+  Tools used: search → search
+  Sources ✓: MapleHarvest
+  Judge: The agent answer does not provide any relevant information about the
+         temporary field mappings or the March 23 workshop, and it
+         indicates a lack of knowledge on the topic.
+
+  [q4_aureum_scim]  (easy)  score=1.00  tools=4  3.3s
+  Q: what SCIM fields were conflicting at Aureum, and what fast fix did Jin pr…
+  Tools used: search → search → search → read
+  Sources ✓: Aureum
+  Judge: The agent answer captures all key facts from the reference, including the
+         conflicting SCIM fields and Jin's proposed fast fix, while using
+         slightly different wording.
+
+  [q5_blueharbor_defect_risk]  (hard)  score=0.20  tools=5  4.2s
+  Q: which customer looks most likely to defect to a cheaper tactical competit…
+  Tools used: search → search → search → search → read
+  Sources ✗: BlueHarbor Logistics
+  Judge: The agent answer incorrectly identifies the customer and provides a
+         different milestone that does not match the reference. It lacks
+         key details about BlueHarbor Logistics and the specific milestone
+         related to search relevance.
+
+  [q6_na_west_taxonomy_vs_duplicate]  (hard)  score=0.00  tools=1  1.5s
+  Q: among the North America West Event Nexus accounts, which ones are really …
+  Tools used: lookup
+  Sources ✗: Arcadia Cloudworks, BlueHarbor Logistics, CedarWind Renewables, HelioFab Systems, Pacific Health Network, Pioneer Freight Solutions, Helix Assemblies, LedgerBright Analytics, LedgerPeak Software, MedLogix Distribution, Peregrine Logistics Group, Pioneer Grid Retail
+  Judge: The agent answer does not address the question about specific accounts
+         dealing with taxonomy/search semantics problems or duplicate-
+         action problems, and instead states that there are no accounts
+         listed, which is irrelevant.
+
+  [q7_canada_approval_bypass]  (hard)  score=0.80  tools=1  3.2s
+  Q: do we have a recurring Canada approval-bypass pattern across accounts, or…
+  Tools used: search
+  Sources ✓: MapleBridge Insurance, MapleFork Franchise
+  Sources ✗: Verdant Bay, Maple Regional Transit, MapleBay Marketplace, MaplePath Career, MapleWest Bank
+  Judge: The agent answer captures most key facts about the recurring approval-
+         bypass pattern and mentions specific customer names, but it omits
+         some details about the exact nature of the failure pattern and
+         the complete list of affected customers.
+
+  [q8_nordfryst_renewal_terms]  (easy)  score=0.60  tools=2  1.9s
+  Q: what commercial concession did Northstar offer NordFryst at renewal, and …
+  Tools used: search → search
+  Sources ✓: NordFryst AB
+  Judge: The agent answer captures the 8% renewal discount and the conditional 4%
+         rebate but omits the specific success metrics of a 60% reduction
+         in alert volume and MTTA under 10 minutes. Additionally, it
+         introduces extra details about remediation plans that are not
+         part of the reference.
+
+  [q9_nordchemica_suppression_bundle]  (easy)  score=0.80  tools=2  4.1s
+  Q: what exactly is in the suppression tuning bundle Northstar is delivering …
+  Tools used: search → read
+  Sources ✓: NordChemica AB
+  Judge: The agent's answer captures most key facts from the reference, including
+         the components of the suppression tuning bundle and the rollback
+         mechanism. However, it includes some extra information and minor
+         omissions regarding the specifics of the Rules Evaluation Engine
+         changes.
+
+  [q10_drs_hysteresis_pilot]  (easy)  score=1.00  tools=4  3.5s
+  Q: for the Department of Regional Services, what scoring hysteresis rule did…
+  Tools used: lookup → search → search → read
+  Sources ✓: Department of Regional Services (DRS)
+  Judge: The agent answer captures all key facts from the reference, including the
+         specific scoring hysteresis rule proposed by Isabella and the
+         target override rate for the pilot.
+
+  [q11_northpoint_provisioning_failures]  (easy)  score=1.00  tools=4  6.8s
+  Q: what triggered the role provisioning degradation at Northpoint Apparel, a…
+  Tools used: search → search → search → read
+  Sources ✓: Northpoint Apparel Pty Ltd
+  Judge: The agent answer captures all key facts from the reference, including the
+         trigger for the degradation, the increase in provisioning time,
+         the impact on stores, and the two main failure modes, albeit with
+         slight paraphrasing.
+
+  [q12_laurentia_schema_mitigation]  (easy)  score=0.60  tools=2  2.0s
+  Q: for Province of Laurentia, what was the immediate mitigation for the reje…
+  Tools used: search → search
+  Sources ✗: Province of Laurentia — Department of Public Works
+  Judge: The agent answer captures some aspects of the renewal offer but fails to
+         provide the specific immediate mitigation details regarding the
+         rejected events, which are crucial to the question.
+
+  [q13_nordchemica_commercial_concession]  (easy)  score=0.00  tools=2  2.1s
+  Q: what commercial concession did Northstar offer NordChemica during the pro…
+  Tools used: search → search
+  Sources ✗: NordChemica AB
+  Judge: The agent answer is completely wrong as it does not provide any
+         information about the commercial concession or the success
+         metric, and it states that it couldn't find any specific
+         information.
+
+  [q14_sentinelops_phase0_config]  (easy)  score=1.00  tools=2  2.5s
+  Q: according to the SentinelOps design review, what are the specific Phase 0…
+  Tools used: search → read
+  Sources ✓: SentinelOps AB
+  Judge: The agent's answer captures all key facts from the reference, including
+         the specific changes in Phase 0 and the targeted median snapshot
+         latency, while using slightly different wording.
+
+  [q15_noiseguard_competitor_profile]  (easy)  score=0.80  tools=1  1.4s
+  Q: what is NoiseGuard's pricing position, and what are its key strengths and…
+  Tools used: lookup
+  Judge: The agent answer captures most key facts about NoiseGuard's pricing
+         position and strengths, but it omits details about the simple UI,
+         low operational overhead, and specific weaknesses related to
+         schema-awareness and integration.
+
+  [q16_nordfryst_action_item_owners]  (easy)  score=1.00  tools=4  3.6s
+  Q: after the NordFryst renewal negotiation call, who owns the ML trial provi…
+  Tools used: search → search → lookup → read
+  Sources ✓: NordFryst AB
+  Judge: The agent answer captures all key facts from the reference, including the
+         owners and due dates for both action items, using slightly
+         different wording.
+
+  [q17_alert_noise_pilot_scale_pattern]  (hard)  score=0.00  tools=6  3.5s
+  Q: NordFryst, NordChemica, and SentinelOps all escalated around the same per…
+  Tools used: search → search → search → search → search → search
+  Sources ✗: NordFryst AB, NordChemica AB, SentinelOps AB
+  Judge: The agent answer does not address the question at all and fails to provide
+         any relevant information regarding the shared root cause pattern
+         among the three companies.
+
+  [q18_cross_region_escalation_recovery]  (hard)  score=0.60  tools=1  2.7s
+  Q: which accounts across all regions currently have escalation recovery as t…
+  Tools used: lookup
+  Sources ✓: Aureum Payments, Catalyst Careers, HarborHome Marketplace, Harvest Table Group, Aurora University System, MapleFork Franchise, MapleWest Bank, Province of Laurentia
+  Judge: The agent answer lists some accounts in the escalation recovery stage but
+         incorrectly includes accounts that are not in that stage, such as
+         'Catalyst Careers Pty Ltd', 'HarborHome Marketplace Pty Ltd',
+         'Harvest Table Group', and 'MapleFork Franchise Systems'. It also
+         fails to mention that there are no escalation recovery accounts
+         in the Nordics or NA West regions.
+
+  [q19_nordfryst_remediation_timeline]  (hard)  score=0.40  tools=3  5.4s
+  Q: what is the complete post-call action item timeline for NordFryst's alert…
+  Tools used: search → search → read
+  Sources ✓: NordFryst AB
+  Judge: The agent's answer provides a general overview of action items but lacks
+         specific details from the reference answer, such as exact
+         deadlines and the specific actions assigned to each individual.
+         Key facts like the exact dates and the specific tasks assigned to
+         each person are missing.
+
+================================================================================

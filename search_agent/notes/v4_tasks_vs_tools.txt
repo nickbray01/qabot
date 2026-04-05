@@ -1,0 +1,129 @@
+Root: Answer a question about customer accounts
+│
+├── A. Read structured data from DB
+│   ├── A1. Filter customers by geography / segment / CRM stage / product  ✓ list_customers
+│   │   ├── [q6]  list NA West customers (12 accounts)
+│   │   └── [q7]  list Canada customers (cross-check for missed accounts)
+│   │
+│   ├── A2. Look up competitor names, segments, pricing positions           ✓ sql_query
+│   │   └── [q5]  look up NoiseGuard as low-cost adjacent competitor
+│   │
+│   ├── A3. Join scenario → customer → implementation → artifact list       ✓ scenario_summary_tool
+│   │   └── (supporting lookup for any question once scenario_id is known)
+│   │
+│   └── A4. Count or aggregate across tables                                ✓ sql_query
+│       └── (used incorrectly as first step on q5, q6 — returns nothing
+│            because the signal is in artifact content, not columns)
+│
+├── B. Search unstructured document content
+│   ├── B1. Keyword search across all artifacts — flat results              ✓ search_artifacts
+│   │   ├── [q1]  "taxonomy rollout BlueHarbor 2026-02-20"
+│   │   ├── [q2]  "Verdant Bay live patch window"
+│   │   ├── [q3]  "MapleHarvest Quebec router transform"
+│   │   ├── [q4]  "Aureum SCIM department businessUnit"
+│   │   ├── [q5]  "NoiseGuard BlueHarbor at risk"
+│   │   ├── [q8]  "NordFryst renewal discount concession"
+│   │   ├── [q9]  "NordChemica suppression bundle 2026-03-22"
+│   │   ├── [q10] "Department of Regional Services confidence threshold"
+│   │   ├── [q11] "Northpoint Apparel role provisioning lag"
+│   │   └── [q12] "Province of Laurentia schema rejected events"
+│   │
+│   ├── B2. Keyword search grouped by customer — pattern detection          ✓ find_pattern_across_customers
+│   │   └── [q7]  "approval bypass Canada" × 3+ synonym sweeps
+│   │
+│   ├── B3. Retrieve all artifact titles + summaries for one customer       ✓ customer_artifacts
+│   │   ├── [q1]  BlueHarbor artifacts
+│   │   ├── [q5]  BlueHarbor artifacts
+│   │   ├── [q6]  each of 12 NA West customers × 12 calls
+│   │   ├── [q7]  each of 7 Canada customers
+│   │   └── [q8]  NordFryst artifacts
+│   │
+│   ├── B4. Retrieve full text of one artifact by ID                        ✓ artifact_full_text
+│   │   ├── [q1]  proof-of-fix internal doc
+│   │   ├── [q2]  ops playbook / patch plan
+│   │   ├── [q3]  schema mapping document
+│   │   ├── [q4]  support ticket or call transcript
+│   │   ├── [q5]  competitive risk artifact (BlueHarbor)
+│   │   ├── [q6]  1–2 artifacts per customer × 12 customers
+│   │   ├── [q7]  1 artifact per affected Canada customer × 7
+│   │   ├── [q8]  NordFryst renewal call + mitigation plan
+│   │   ├── [q9]  NordChemica service review doc
+│   │   ├── [q10] DRS renewal enablement brief
+│   │   ├── [q11] Northpoint Apparel decision memo
+│   │   └── [q12] Laurentia remediation plan
+│   │
+│   └── B5. Keyword search scoped to one customer                           ✗ no tool
+│       └── [q5]  confirm NoiseGuard mention is within BlueHarbor's docs
+│
+├── C. Extract specific information from document text   (LLM reads B4 output)
+│   ├── C1. Dates, time windows, and deadlines                              ✓ LLM after B4
+│   │   ├── [q1]  7–10 business days, 2026-03-19, 2026-03-22
+│   │   ├── [q2]  2026-03-24 02:00–04:00
+│   │   ├── [q3]  2026-03-23 workshop
+│   │   ├── [q5]  2026-03-19 schema export, 2026-03-22 A/B test start
+│   │   ├── [q8]  90-day pilot window
+│   │   ├── [q10] 2026-03-22 pilot start
+│   │   ├── [q11] 2026-02-15 HR restructure trigger
+│   │   └── [q12] 90-day retention, 2026-04-15 renewal deadline
+│   │
+│   ├── C2. CLI commands and technical config snippets                      ✓ LLM after B4
+│   │   ├── [q2]  `orchestrator rollback --target ruleset=<prior_sha>`
+│   │   └── [q9]  feature-flag rollback, 15-minute revert window
+│   │
+│   ├── C3. Field names and schema mappings                                 ✓ LLM after B4
+│   │   ├── [q3]  txn_id→transaction_id, total_amount→amount_cents,
+│   │   │         store_id, register_id
+│   │   ├── [q4]  department vs businessUnit SCIM variants
+│   │   ├── [q9]  heartbeat-missing-v1, temp-thresholds-v1 window settings
+│   │   ├── [q11] job_code → role mapping
+│   │   └── [q12] laurentia.unknown quarantine topic
+│   │
+│   ├── C4. Named people and their specific proposals                       ✓ LLM after B4
+│   │   ├── [q4]  Jin Park: hot-reloadable Signal Ingest preprocessing rule
+│   │   └── [q10] Isabella Rossi: 0.62 / 3-consecutive / 10-min window rule
+│   │
+│   ├── C5. Commercial terms — discounts, credits, contract conditions      ✓ LLM after B4
+│   │   ├── [q8]  8% upfront + 4% conditional discount
+│   │   └── [q12] 160 engineering hours if signed by 2026-04-15
+│   │
+│   ├── C6. KPIs, success metrics, numeric thresholds                       ✓ LLM after B4
+│   │   ├── [q1]  80% top-5 correct hit rate, top 20 saved searches
+│   │   ├── [q5]  80% hit rate, no suppression regression
+│   │   ├── [q8]  70% alert reduction in 7 days, ≤500/day in 30 days,
+│   │   │         MTTA < 8 minutes
+│   │   └── [q10] override rate ≤15% within 4-week pilot
+│   │
+│   ├── C7. Product / component codes  (EN-*, SI-*, OR-*)                   ✓ LLM after B4
+│   │   ├── [q1]  index weighting, taxonomy mapping layer
+│   │   ├── [q3]  SI-SCHEMA-REG
+│   │   ├── [q4]  Signal Ingest preprocessing rule
+│   │   └── [q9]  EN-DEDUPE, SI-ETL-FILTER, Rules Evaluation Engine
+│   │
+│   └── C8. Failure modes and root causes                                   ✓ LLM after B4
+│       ├── [q6]  search relevance degradation (taxonomy group) vs
+│       │         deduplication drift (duplicate group)
+│       ├── [q7]  precedence metadata, stale caches, field alias mismatches,
+│       │         delayed schema propagation
+│       └── [q11] missing role in store webhooks, legacy job_code in
+│                 corporate catalog
+│
+└── D. Synthesize across multiple documents
+    ├── D1. Classify a set of named accounts into groups                    ✗ no tool
+    │   └── [q6]  read 12 NA West customers' artifacts → split into
+    │             taxonomy group (6) vs duplicate group (6)
+    │             requires B3+B4 loop × 12; no batch tool exists
+    │
+    ├── D2. Identify accounts sharing a cross-account failure pattern       ~ find_pattern_across_customers
+    │   └── [q7]  group Canada approval-bypass accounts + extract
+    │             shared root cause across 7 customers
+    │             (tool groups by customer but doesn't extract the pattern)
+    │
+    ├── D3. Find accounts at competitive risk from a specific rival         ~ sql_query + search_artifacts
+    │   └── [q5]  A2 (competitor names) + B1 (competitor in artifact text)
+    │             two-step assembly; no single tool combines them
+    │             competitor mention in artifacts ≠ competitor in DB table
+    │
+    └── D4. Rank / prioritize accounts by renewal or defection risk        ✗ no tool
+        └── [q5]  read risk signals from multiple artifacts, then infer
+                  which customer is closest to switching
+                  currently relies entirely on LLM judgment after D3

@@ -1,0 +1,144 @@
+================================================================================
+  AGENT SNAPSHOT — VERSION 6, 4/5/2026
+================================================================================
+
+  Model     : gpt-4o (temperature=0)
+  Framework : LangGraph ReAct (langgraph.prebuilt ToolNode + tools_condition)
+  State     : MessagesState (message list)
+  Tool limit: 10 tool calls per question (enforced in evals/runner.py)
+
+  Change from v5: Tools collapsed from 7 to 3 composable primitives (search,
+  read, lookup). System prompt shortened from ~800 to ~250 words. Hypothesis:
+  fewer tools reduces agent confusion and improves generalisation.
+
+================================================================================
+  GRAPH ARCHITECTURE
+================================================================================
+
+  Nodes:
+    call_model   — invokes gpt-4o with system prompt + bound tools
+    call_tools   — ToolNode executing whichever tools the model requested
+
+  Edges:
+    START → call_model
+    call_model → [tools_condition] → call_tools   (if tool calls present)
+                                   → END           (if no tool calls)
+    call_tools → call_model
+
+  Pattern: standard ReAct loop — model reasons, calls tools, loops until done
+           or the 10-call limit is hit.
+
+================================================================================
+  SYSTEM PROMPT
+================================================================================
+
+  Role: Analyst assistant for a B2B software company.
+
+  Tools described inline:
+
+  search(query, ...)
+    Full-text search over all artifact content. Returns matching artifacts with
+    a content snippet (default 400 chars from content_text) — often enough to
+    answer without a follow-up read(). Use as first move for almost every
+    question. Set group_by_customer=True for pattern or classification questions.
+    Filters: customer_name, region, crm_stage, artifact_type.
+
+  read(artifact_ids)
+    Returns full content for one or more artifacts by ID. Pass multiple IDs in
+    a single call for cross-account synthesis or when exact details (dates,
+    commands, action-item lists) aren't covered by the snippet.
+
+  lookup(entity, ...)
+    Structured row lookup — no FTS. Use for: enumerating accounts by
+    region/CRM stage, getting a competitor's full profile, looking up an
+    employee's role, listing artifact metadata for a specific customer.
+    entity values: "customers", "competitors", "employees", "artifacts"
+
+  Decision rules (6):
+
+  Rule 1 — Start with search for content questions; start with lookup for
+    enumeration or profile questions (customer lists, competitor profiles,
+    employee records).
+
+  Rule 2 — The search snippet (default 400 chars) is usually enough for simple
+    single-account questions. Call read() when you need the full document.
+
+  Rule 3 — For "is this widespread?" or "which accounts share X?", use
+    search(group_by_customer=True) — one call surfaces all matching customers
+    with snippets and artifact IDs.
+
+  Rule 4 — For cross-account synthesis, collect artifact IDs from search results
+    then call read([id1, id2, id3]) in one batch rather than one read() per
+    account.
+
+  Rule 5 — If search returns no results, rephrase with different keywords before
+    concluding the data doesn't exist — empty results mean vocabulary mismatch,
+    not missing data.
+
+  Rule 6 — For specific action items, owners, or exact dates: use
+    artifact_type="internal_communication" to target Slack threads, which
+    contain the most precise action-item lists.
+
+================================================================================
+  TOOLS  (3 total)
+================================================================================
+
+  1. search(query, customer_name="", region="", crm_stage="", artifact_type="",
+            limit=10, snippet_chars=400, group_by_customer=False)
+     FTS over artifact title, summary, and content_text. Returns matching
+     artifacts with a content snippet (first snippet_chars chars of
+     content_text). Set group_by_customer=True to group results by customer,
+     each entry includes artifact_count, artifact_ids, artifact_titles, and a
+     top_snippet. All filters are partial-match (LIKE).
+
+  2. read(artifact_ids: list[str])
+     Fetch full content of one or more artifacts by ID in a single call.
+     Returns: artifact_id, artifact_type, title, content_text, customer_name.
+
+  3. lookup(entity, name="", region="", crm_stage="", industry="",
+            department="", limit=100)
+     Structured row lookup. entity values and what 'name' means:
+       "customers"   — filters by customer name; also accepts region, crm_stage,
+                       industry
+       "competitors" — filters by competitor name; returns full profile
+       "employees"   — filters by employee name; also accepts department, region
+       "artifacts"   — filters by customer name; returns metadata (no body text)
+
+================================================================================
+  EVAL RESULTS SUMMARY
+================================================================================
+
+  Version  Questions  Correct   Score  Sources   Avg Tools  Easy   Hard
+  -------  ---------  -------   -----  -------   ---------  ----   ----
+  v1       7          5/7  71%  0.63   4/7  57%  2.4        4/4    1/3
+  v2       7          4/7  57%  0.66   6/7  86%  4.4        4/4    0/3
+  v3       7          6/7  86%  0.71   6/7  86%  3.1        4/4    2/3
+  v4       7          7/7 100%  —      —         —          4/4    3/3
+  v5       19         14/19 74% 0.72   17/19 89% 3.4        11/13  3/6
+  v6       19         9/19  47% 0.57   12/19 63% 2.6        8/13   1/6
+
+  Regressions vs v5:
+    q1  (easy): 0.80 → 0.00  agent stopped at snippet, never read full artifact
+    q3  (easy): 0.80 → 0.00  same — answered from snippet, missed field mappings
+    q5  (hard): 0.80 → 0.20  competitor lookup failed without explicit sql recipe
+    q6  (hard): 0.80 → 0.00  lookup dropped product filter; no enumerate→classify
+                              recipe
+    q8  (easy): 1.00 → 0.60  stopped after two searches, missed success metrics
+    q12 (easy): 0.80 → 0.60  two searches, never read full artifact
+    q13 (easy): 0.00 → 0.00  persistent; agent never calls read()
+    q17 (hard): 0.00 → 0.00  persistent; FTS AND semantics block multi-name query
+    q19 (hard): 0.60 → 0.40  fewer tool calls, less complete answer
+
+  Improvements vs v5:
+    q2  (easy): 0.80 → 1.00  cleaner search → read path
+    q4  (easy): 0.80 → 1.00  cleaner search → read path
+    q11 (easy): 0.80 → 1.00  cleaner search → read path
+    q15 (easy): 1.00 → 0.80  minor regression; lookup missed two weakness details
+    q16 (easy): 0.20 → 1.00  artifact_type filter surfaced Slack thread directly
+
+  Root cause: 400-char snippet default trained agent to answer in-place rather
+  than reading. Removing customer_artifacts() broke deterministic per-customer
+  lookup. Removing question-type recipes lost multi-step patterns the agent
+  doesn't reconstruct spontaneously.
+
+================================================================================
