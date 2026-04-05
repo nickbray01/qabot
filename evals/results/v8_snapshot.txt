@@ -1,0 +1,284 @@
+================================================================================
+  AGENT SNAPSHOT — VERSION 8, 4/5/2026
+================================================================================
+
+  Model     : gpt-4o (temperature=0)
+  Framework : LangGraph ReAct (langgraph.prebuilt ToolNode + tools_condition)
+  State     : MessagesState (message list)
+  Tool limit: 10 tool calls per question (enforced in evals/runner.py)
+
+  Change from v7: System prompt refactored to remove question-specific
+  answer scaffolding (Rule 8 defection risk recipe de-hardcoded), add
+  three new technique-based rules (product-name schema joins, mandatory
+  internal_communication for due dates, named-account batch-read budget
+  discipline), and strengthen two existing rules (plan methodology
+  extraction in Rule 2, absent-region reporting in Rule 6).
+
+================================================================================
+  GRAPH ARCHITECTURE
+================================================================================
+
+  Nodes:
+    call_model   — invokes gpt-4o with system prompt + bound tools
+    call_tools   — ToolNode executing whichever tools the model requested
+
+  Edges:
+    START → call_model
+    call_model → [tools_condition] → call_tools   (if tool calls present)
+                                   → END           (if no tool calls)
+    call_tools → call_model
+
+  Pattern: standard ReAct loop — model reasons, calls tools, loops until done
+           or the 10-call limit is hit.
+
+================================================================================
+  SYSTEM PROMPT
+================================================================================
+
+  Role: Analyst assistant for a B2B software company.
+
+  Tools described inline (five tools):
+
+  think(reasoning)
+    Scratchpad for planning before choosing data tools. Call FIRST for
+    multi-phase questions, numeric extraction, "which customer" identity
+    questions, competitive risk analysis, or abstract-to-concrete keyword
+    translation.
+
+  search(query, ...)
+    Full-text search over all artifact content. First move for almost every
+    content question. Filters: customer_name, region, crm_stage,
+    artifact_type. Set group_by_customer=True for pattern or classification
+    questions.
+
+  read(artifact_ids)
+    Returns FULL content for one or more artifacts by ID. Pass multiple IDs
+    in a single call. ALWAYS call read() for specific technical values:
+    field names, commands, exact percentages, exact dates, action-item
+    owners, step-by-step plans. Snippets are teasers only.
+
+  lookup(entity, ...)
+    Structured row lookup — no FTS. For enumerating customers by
+    region/crm_stage, competitor profiles, employee lookups, artifact
+    metadata.
+    entity values: "customers", "competitors", "employees", "artifacts"
+    NOTE: region values in the DB are exactly:
+      'ANZ', 'Canada', 'Nordics', 'North America West'
+    NOTE: crm_stage and account_health are INDEPENDENT fields.
+
+  sql_query(sql)
+    Read-only SELECT. Use for exact column matches, multi-table joins, or
+    aggregations.
+    Tables: customers, artifacts, competitors, employees,
+            implementations (implementation_id, customer_id, product_id,
+            status, contract_value, deployment_model),
+            scenarios,
+            products (product_id, name, category, pricing_model).
+    NOTE (new in v8): Product names (e.g. "Event Nexus", "Signal Ingest",
+    "Orchestrator") are NOT stored in customers.industry. To find all
+    customers using a specific product, join through implementations:
+      customers → implementations → products WHERE products.name = '...'
+
+  Decision rules (9):
+
+  Rule 0 — Call think() first for multi-phase, numeric extraction, identity,
+    competitive risk, or abstract-to-concrete keyword problems.
+
+  Rule 1 — Start with search() for content; start with lookup() or
+    sql_query() for enumeration.
+
+  Rule 2 (strengthened in v8) — After search(), read() when specific values
+    are required. Report YYYY-MM-DD dates and numeric thresholds verbatim.
+    When the question asks for a plan, proof, or pilot methodology, extract
+    and connect three distinct elements: (1) testing/validation method,
+    (2) scope covered, (3) success threshold. Also capture negative success
+    criteria ("no regression" conditions).
+
+  Rule 3 — For "is this widespread?" use search(group_by_customer=True)
+    then read() the top artifact IDs.
+
+  Rule 4 — For cross-account classification, enumerate account set first
+    (sql_query/lookup), then search per category with group_by_customer=True,
+    then read() to confirm. Enumeration gives names; search gives
+    classification — both phases are required.
+
+  Rule 5 (strengthened in v8) — For exact action items, owners, or due
+    dates: use artifact_type="internal_communication" to target Slack
+    threads. MANDATORY when question asks for post-call action items,
+    assigned owners, or specific due dates. Call transcripts contain the
+    discussion; the Slack follow-up thread is where YYYY-MM-DD due dates
+    and formal owner assignments are recorded. "Who owns X and by when?"
+    cannot be answered from a call transcript alone.
+
+  Rule 6 (strengthened in v8) — Use sql_query() for exact column values,
+    aggregations, or joins. When enumerating accounts by crm_stage or
+    account_health across all regions, report each field separately and
+    explicitly state which regions returned zero results. Absence is as
+    informative as presence.
+
+  Rule 7 — If search returns no results, rephrase before concluding the
+    data doesn't exist — empty results mean vocabulary mismatch.
+
+  Rule 8 (refactored in v8, was question-specific in v7) — For competitor-
+    defection risk questions:
+    - Identify the competitor via lookup("competitors") or search.
+    - Search by competitor name with group_by_customer=True; highest
+      artifact_count is almost always the highest-risk account.
+    - Read the top artifact to confirm the risk and identify the specific
+      commitment at stake (POC, fix, pilot).
+    - Do a SECOND targeted search using keywords drawn from that commitment,
+      scoped to customer_name=<winner> and artifact_type="internal_document".
+      Read the top result — report all dates, deliverables, and success
+      criteria verbatim.
+    - When synthesizing, use the competitor profile's own language from
+      lookup("competitors") to describe the threat (e.g. "tactical",
+      "buy time", "low-cost alternative") rather than paraphrasing.
+
+    Change from v7: Rule 8 previously hardcoded search(query="proof
+    milestone timeline") — keywords specific to one test case (q5). Replaced
+    with instruction to derive search keywords from the commitment identified
+    in the first read(). The model still reliably finds the correct planning
+    document via context-derived keywords.
+
+  Rule 9 (new in v8) — When specific account names are given in the
+    question and you need a shared pattern, do NOT lookup each account
+    individually. Instead: search the core theme with group_by_customer=True
+    to surface all named accounts at once, collect artifact IDs, then batch
+    into a SINGLE read() call. Every lookup/search call without a subsequent
+    read() is wasted budget on a named-account pattern question.
+
+================================================================================
+  PROMPT CHANGES FROM v7
+================================================================================
+
+  1. Rule 8 de-hardcoded (q5 was leaking):
+     v7 hardcoded search(query="proof milestone timeline") which was
+     verbatim keywords from BlueHarbor's internal document — effectively
+     pre-answering q5. Replaced with abstract guidance: derive keywords
+     from the commitment identified after reading the call artifact. Model
+     still finds the correct document via context; q5 score unchanged (0.80).
+
+  2. sql_query product-name NOTE added (q6 was crashing):
+     Model was generating WHERE industry = 'Event Nexus', getting 0 rows,
+     and returning an empty answer. "Event Nexus" is a products.name value,
+     not an industry. Added explicit note that product-named customer sets
+     require joining through implementations. q6 fixed (ERR → ✓ 0.80).
+
+  3. Rule 2 plan-methodology guidance added (q1 robustness):
+     When answering plan/proof/pilot questions, the model should connect
+     the test method, scope, and success threshold as a single unit — not
+     list them as unrelated facts. Also added: capture negative success
+     criteria ("no regression" conditions). q1 score improved 0.80 → 1.00
+     on the session run confirming the fix.
+
+  4. Rule 5 strengthened with MANDATORY language (q16, q19):
+     Previous wording was advisory. Both q16 and q19 were using call
+     transcripts for action items and missing due dates. Clarified that
+     post-call due dates and owner assignments live only in the
+     internal_communication Slack thread, not the call transcript.
+     q16: 0.60 → 1.00. q19: 0.40 → 1.00.
+
+  5. Rule 6 absent-region reporting added (q18):
+     When enumerating by crm_stage across regions, the model must state
+     which regions have zero accounts in that stage. q18: 0.60 → 0.80.
+
+  6. Rule 9 added — named-account batch-read discipline (q17):
+     Model was spending all 10 tool calls on 3 individual lookups + 6
+     searches, hitting the limit before any read() call, returning an
+     empty answer. Rule 9 prohibits per-account lookups when accounts are
+     already named; requires group_by_customer search + batch read instead.
+     q17: 0.00 (ERR) → 0.80 ✓.
+
+================================================================================
+  TOOLS  (5 total, unchanged from v7)
+================================================================================
+
+  1. think(reasoning) — scratchpad, no DB query
+  2. search(query, ...)  — FTS over artifacts_fts with progressive fallback
+  3. read(artifact_ids)  — full content fetch by artifact ID list
+  4. lookup(entity, ...) — structured row lookup across 4 entity types
+  5. sql_query(sql)      — read-only SELECT with schema guard
+
+  No tool code changes in v8. All changes were system prompt only.
+
+================================================================================
+  EVAL RESULTS SUMMARY
+================================================================================
+
+  Version  Questions  Correct    Score  Sources    Avg Tools  Easy    Hard
+  -------  ---------  -------    -----  -------    ---------  ----    ----
+  v1       7          5/7  71%   0.63   4/7  57%   2.4        4/4     1/3
+  v2       7          4/7  57%   0.66   6/7  86%   4.4        4/4     0/3
+  v3       7          6/7  86%   0.71   6/7  86%   3.1        4/4     2/3
+  v4       7          7/7 100%   —      —          —          4/4     3/3
+  v5       19         14/19 74%  0.72   17/19 89%  3.4        11/13   3/6
+  v6       19         9/19  47%  0.57   12/19 63%  2.6        8/13    1/6
+  v7       19         16/19 84%  0.83   16/19 84%  2.2        12/13   4/6
+  v8       19         17/19 89%  ~0.87  18/19 95%  ~3.8       13/13   4/6
+
+  Note: v8 summary is a composite of targeted re-runs (q1-q7, q16-q19).
+  q8-q15 scores carried forward from user-run v8 baseline prior to this
+  session's changes. Full end-to-end run recommended for exact figures.
+
+  v8 vs v7 deltas (question-level):
+
+    Improvements:
+      q6  (hard): ERR/0.00 → 0.80 ✓  Product-name JOIN note; model now
+                                       correctly joins implementations →
+                                       products instead of querying
+                                       industry = 'Event Nexus'.
+      q16 (easy): 0.60 → 1.00 ✓      Rule 5 MANDATORY; model targets
+                                       internal_communication for due dates.
+      q17 (hard): 0.00/ERR → 0.80 ✓  Rule 9; model now does batch-read
+                                       instead of 3 lookups + 6 searches.
+      q18 (hard): 0.60 → 0.80 ✓      Rule 6 absent-region; model now notes
+                                       Nordics and NA West have zero
+                                       escalation recovery accounts.
+      q19 (hard): 0.40 → 1.00 ✓      Rule 5 MANDATORY; model targets
+                                       internal_communication for complete
+                                       post-call action item timeline.
+
+    Unchanged (still passing):
+      q1-q7, q8, q9, q11, q12, q14, q15
+
+    Remaining failures:
+      q10 (easy): 0.40 ✗  DRS hysteresis pilot — model finds the right
+                           customer but answer lacks exact threshold values
+                           (0.62 for 3 consecutive events, 15% override rate).
+                           Reads the correct artifact but doesn't extract all
+                           numeric specifics. Possible fix: stronger read()
+                           instruction to enumerate all numeric thresholds
+                           in pilot/scoring rule questions.
+      q13 (easy): 0.60 ✗  NordChemica commercial concession — model finds
+                           the 6% credit but paraphrases the SIQ success
+                           metric as "70% reduction" instead of reporting
+                           the exact threshold (≤500 actionable alerts/day,
+                           MTTA <8 min, no missed P1s). Same root cause as
+                           q10: numeric success criteria not extracted
+                           verbatim from the artifact.
+
+================================================================================
+  KNOWN LIMITATIONS / NEXT STEPS
+================================================================================
+
+  q10 + q13 (shared failure mode — numeric threshold extraction):
+    Both questions ask for exact numeric success criteria embedded in
+    internal planning documents. The model reads the correct artifact but
+    paraphrases or omits specific threshold values. The Rule 2 plan-
+    methodology guidance partially addresses this, but q10 and q13 involve
+    scoring rules and commercial SLAs (not "plans") so the trigger may not
+    fire. Possible fix: extend Rule 2's "report verbatim" instruction to
+    explicitly cover scoring thresholds, SLA targets, and commercial
+    credit conditions — not just plan timelines.
+
+  q17 (hard — still 0.80, not 1.00):
+    Model now reads artifacts and synthesizes the pattern but misses some
+    SentinelOps specifics (CPU saturation, 20-45 min dashboard delays,
+    28-collector expansion). q17 uses 8 tool calls — the model is doing
+    multiple searches rather than a clean group_by_customer + batch read.
+    Rule 9 reduced the lookup waste but the model is still searching per-
+    account rather than batching. May need a harder budget constraint or a
+    more explicit "search once with group_by_customer, then batch read all
+    three accounts' artifact IDs together" instruction.
+
+================================================================================

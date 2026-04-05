@@ -1,8 +1,10 @@
-"""Three composable tools for the search agent.
+"""Tools for the search agent.
 
+think   — scratchpad for planning before choosing data tools
 search  — FTS over artifact content, returns snippets (+ optional customer grouping)
 read    — fetch full content for one or more artifact IDs in a single call
 lookup  — structured rows from customers / competitors / employees / artifacts tables
+sql_query — read-only SQL SELECT against the database
 """
 
 from __future__ import annotations
@@ -65,6 +67,34 @@ def _fts_candidates(query: str) -> list[str]:
             seen.add(c)
             result.append(c)
     return result
+
+
+# ── 0. think ─────────────────────────────────────────────────────────────────
+
+@tool
+def think(reasoning: str) -> str:
+    """Scratchpad for planning before choosing data tools. Does not query any data.
+
+    Call this FIRST whenever the question requires:
+    - Multiple phases  (e.g. enumerate accounts → classify each by content)
+    - Extracting specific numeric values  (thresholds, rates, credits, dates)
+    - Identifying which of multiple customers matches a pattern or risk
+    - Translating an abstract concept into concrete search keywords
+      (e.g. "defect to a cheaper competitor" → which competitor name to search,
+       which artifact signals indicate defection risk)
+
+    Write out:
+      1. What type of question this is (classification, extraction, competitive risk, …)
+      2. Exactly which facts you need to find — be specific about format:
+         - Dates: "I need exact YYYY-MM-DD calendar dates, not relative ('in 10 days')"
+         - Milestones: list each step with owner and deadline
+         - Metrics: exact numeric threshold and unit
+         - "which customer": name each candidate and what signal distinguishes them
+      3. Which tool sequence you plan to use and why
+
+    The output is only for your reasoning — it does not retrieve or change any data.
+    """
+    return f"[Reasoning recorded]\n{reasoning}"
 
 
 # ── 1. search ─────────────────────────────────────────────────────────────────
