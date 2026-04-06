@@ -34,7 +34,7 @@ Helpful for any database exploration not explicitly provided as a tool. Leverage
 NOTE: having an AI Security background, I worry about this tool. I enforced a software-level policy (as opposed to an LLM-level policy) confirming that ONLY single execution queries starting with SELECT are permissible through this tool. This makes the database read-only. Even if you successfully jailbreak the LLM, then to try to execute this tool with `DROP * FROM customers`, the tool's logic wouldn't allow it.
 
 # Security
-Since I'm coming from PANW's AI Runtime Security, the first thing I thought of was how risky direct access to a database could be. As mentioned above in the `sql_query` tool's note, I made sure the database is read-only. 
+Since I'm coming from an AI Security background, the first thing I thought of was how risky direct access to a database could be. As mentioned above in the `sql_query` tool's note, I made sure the database is read-only. 
 
 ### Tool Leakage
 The agent is susceptible to an attack called tool leakage - if you ask nicely, the agent will tell you all of the tools it has access to, as well as their schemas.
