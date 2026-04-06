@@ -16,19 +16,19 @@ Create an agent that can answer questions in a Slack channel, using information 
     - call_tools - executes whichever tools the model asked for
 
 ## Tools Provided: 
-### think
+### think()
 Call this first for complicated problems (hard examples provided). Allows the agent to decompose abstract / multistep problems into actionable steps and multiple structured requests to the DB
 
-### search
-The database provided us with FTS artifacts. Full text search turned out to be a very for matching search queries to documents and deciding what the agent should read for context.
+### search()
+The database provided us with FTS artifacts. The availability of Full Text Search is very convenient for finding documents that contain keywords. The `search()` tool gives the LLM access to that functionality.
 
-### read
-Return an entire document from the DB. Once a match has been found for a keyword, read allows the agentto view the full document. This lets the agent gather all available information and ground its answers on everything the database offers. Since we already have the search function to narrow down the search space, and documents are only ~500-2000 tokens, we can pass everything into the LLM and not worry about context window.
+### read()
+Return an entire document from the DB. Once a match has been found for a keyword, read allows the agent to view the full document. This lets the agent gather all available information and ground its answers on everything the database offers. Since we already have the search function to narrow down the search space, and documents are only ~500-2000 tokens, we can pass everything into the LLM and not worry about context window.
 
-### lookup
+### lookup()
 Structured row lookup for enumerating customers by attribute. This allows the LLM to see patterns across multiple customers that share an attribute in the DB. E.g. all customers in North America, all customers where crm_stage = "at_risk", etc. 
 
-### sql_query
+### sql_query()
 Helpful for any database exploration not explicitly provided as a tool. Leverage the LLM's decision making to merge tables, view sections of the database in ways I didn't originally intend but it could need to get to an answer. 
 
 NOTE: having an AI Security background, I worry about this tool. I enforced a software-level policy (as opposed to an LLM-level policy) confirming that ONLY single execution queries starting with SELECT are permissible through this tool. This makes the database read-only. Even if you successfully jailbreak the LLM, then to try to execute this tool with `DROP * FROM customers`, the tool's logic wouldn't allow it.
@@ -54,7 +54,7 @@ Stored all variables in a .env file which is not tracked, so we're not leaking a
 
 # Eval + Judge Agents & Auto-Improvements
 
-Once I had the tools to explore the database, I needed some way to evaluate whether my answer was correctly answering the questions. It could be the machine learning engineer in me, but I needed to visualize my accuracy, a summary of the changes made between versions, and my progress over time to know whether I was headed in the right direction. I capture the whole improvement journey at <update_website_link_later>
+Once I had the tools to explore the database, I needed some way to evaluate whether my answer was correctly answering the questions. It could be the machine learning engineer in me, but I needed to visualize my accuracy, a summary of the changes made between versions, and my progress over time to know whether I was headed in the right direction. I capture the whole improvement journey at [THIS LINK](https://nickbray-langchain.netlify.app).
 
 ### Ground Truth
 I used Claude Code to generate answers to the questions. I had it source the documents that would be needed in order to come up with those answers, and I stored that data in a structured format in `/evals/test_cases.py`. As a backup, I created `evals/eval_eval.py` so that I could manually look at the sources and confirm it wasn't hallucinating. I always manually check a couple samples to make sure my 'all powerful ai model' isn't hallucinating when it generates the ground truth I'm going to trust for my training data.

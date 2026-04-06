@@ -145,16 +145,25 @@
   EVAL RESULTS SUMMARY
 ================================================================================
 
-  Version  Questions  Correct  Score  Sources  Avg Tools  Easy   Hard
-  -------  ---------  -------  -----  -------  ---------  ----   ----
-  v1       7          5/7 71%  0.63   4/7 57%  2.4        4/4    1/3
-  v2       7          4/7 57%  0.66   6/7 86%  4.4        4/4    0/3
-  v3       7          6/7 86%  0.71   6/7 86%  3.1        4/4    2/3
-  v4       7          7/7 100% —      —        —          4/4    3/3
-  v5       19         14/19 74% 0.72  17/19 89% 3.4       11/13  3/6
+  Accuracy — Qs 1–7 (provided test cases)
 
-  Note: v5 expanded eval suite to 19 questions (added Nordics, ANZ, commercial
-  terms, competitor profiles, employee attribution, cross-region, multi-account
-  patterns). The drop from v4 100% is expected given new, harder question types.
+  Version  Correct    Score  Sources    Avg Tools  Easy  Hard
+  -------  -------    -----  -------    ---------  ----  ----
+  v1       5/7  71%   0.63   4/7  57%   2.4        4/4   1/3
+  v2       4/7  57%   0.66   6/7  86%   4.4        4/4   0/3
+  v3       6/7  86%   0.71   6/7  86%   3.1        4/4   2/3
+  v4       7/7 100%   —      —          —          4/4   3/3
+  v5       7/7 100%   0.80   7/7 100%   3.0        4/4   3/3
+
+  Generalizability — Qs 8–19 (synthetic test cases; added in v5)
+
+  Version  Correct    Score  Sources    Avg Tools  Easy  Hard
+  -------  -------    -----  -------    ---------  ----  ----
+  v5       7/12  58%  0.67   10/12 83%  3.6        7/9   0/3
+
+  Note: v5 expanded the eval suite from 7 to 19 questions (Nordics, ANZ,
+  commercial terms, competitor profiles, employee attribution, cross-region,
+  multi-account patterns). Accuracy held at 100% on Q1–7; generalizability
+  reflects the harder, unseen question types.
 
 ================================================================================

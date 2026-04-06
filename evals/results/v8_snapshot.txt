@@ -205,20 +205,31 @@
   EVAL RESULTS SUMMARY
 ================================================================================
 
-  Version  Questions  Correct    Score  Sources    Avg Tools  Easy    Hard
-  -------  ---------  -------    -----  -------    ---------  ----    ----
-  v1       7          5/7  71%   0.63   4/7  57%   2.4        4/4     1/3
-  v2       7          4/7  57%   0.66   6/7  86%   4.4        4/4     0/3
-  v3       7          6/7  86%   0.71   6/7  86%   3.1        4/4     2/3
-  v4       7          7/7 100%   —      —          —          4/4     3/3
-  v5       19         14/19 74%  0.72   17/19 89%  3.4        11/13   3/6
-  v6       19         9/19  47%  0.57   12/19 63%  2.6        8/13    1/6
-  v7       19         16/19 84%  0.83   16/19 84%  2.2        12/13   4/6
-  v8       19         17/19 89%  ~0.87  18/19 95%  ~3.8       13/13   4/6
+  Accuracy — Qs 1–7 (provided test cases)
+
+  Version  Correct    Score  Sources    Avg Tools  Easy  Hard
+  -------  -------    -----  -------    ---------  ----  ----
+  v1       5/7  71%   0.63   4/7  57%   2.4        4/4   1/3
+  v2       4/7  57%   0.66   6/7  86%   4.4        4/4   0/3
+  v3       6/7  86%   0.71   6/7  86%   3.1        4/4   2/3
+  v4       7/7 100%   —      —          —          4/4   3/3
+  v5       7/7 100%   0.80   7/7 100%   3.0        4/4   3/3
+  v6       3/7  43%   0.43   3/7  43%   2.3        2/4   1/3
+  v7       6/7  86%   0.74   5/7  71%   2.1        4/4   2/3
+  v8       7/7 100%   0.83   6/7  86%   3.9        4/4   3/3
+
+  Generalizability — Qs 8–19 (synthetic test cases; added in v5)
+
+  Version  Correct    Score  Sources    Avg Tools  Easy  Hard
+  -------  -------    -----  -------    ---------  ----  ----
+  v5       7/12  58%  0.67   10/12 83%  3.6        7/9   0/3
+  v6       6/12  50%  0.65   9/12  75%  2.8        6/9   0/3
+  v7       10/12 83%  0.88   11/12 92%  2.3        8/9   2/3
+  v8       10/12  83%  0.88   11/12 92%  3.8        8/9   2/3
 
   Note: v8 summary is a composite of targeted re-runs (q1-q7, q16-q19).
-  q8-q15 scores carried forward from user-run v8 baseline prior to this
-  session's changes. Full end-to-end run recommended for exact figures.
+  q8-q15 scores carried forward from the full end-to-end v8 run in v8.txt.
+  Full re-run recommended to confirm exact figures.
 
   v8 vs v7 deltas (question-level):
 
