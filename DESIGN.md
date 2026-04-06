@@ -5,6 +5,8 @@ File manually written by me (Nicholas Bray), no ai used.
 # Task:
 Create an agent that can answer questions in a Slack channel, using information from a provided database.
 
+Demo available: [Youtube Link](https://youtu.be/2JFax3_9N0Q)
+
 
 # Agent Implementation:
 ### Model: 
@@ -54,7 +56,7 @@ Stored all variables in a .env file which is not tracked, so we're not leaking a
 
 # Eval + Judge Agents & Auto-Improvements
 
-Once I had the tools to explore the database, I needed some way to evaluate whether my answer was correctly answering the questions. It could be the machine learning engineer in me, but I needed to visualize my accuracy, a summary of the changes made between versions, and my progress over time to know whether I was headed in the right direction. I capture the whole improvement journey at [THIS LINK](https://nickbray-langchain.netlify.app).
+Once I had the tools to explore the database, I needed some way to evaluate whether my answer was correctly answering the questions. It could be the machine learning engineer in me, but I needed to visualize my accuracy, a summary of the changes made between versions, and my progress over time to know whether I was headed in the right direction. I capture the whole improvement journey at [THIS LINK](https://nickbray-langchain.netlify.app). Password = `nickbray`.
 
 ### Ground Truth
 I used Claude Code to generate answers to the questions. I had it source the documents that would be needed in order to come up with those answers, and I stored that data in a structured format in `/evals/test_cases.py`. As a backup, I created `evals/eval_eval.py` so that I could manually look at the sources and confirm it wasn't hallucinating. I always manually check a couple samples to make sure my 'all powerful ai model' isn't hallucinating when it generates the ground truth I'm going to trust for my training data.

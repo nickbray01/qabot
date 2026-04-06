@@ -1,5 +1,12 @@
 # slackbot agent
 
+## Links
+
+- **Demo video**: [https://youtu.be/2JFax3_9N0Q](https://youtu.be/2JFax3_9N0Q)
+- **Build log**: [https://nickbray-langchain.netlify.app](https://nickbray-langchain.netlify.app) *(password: nickbray)*
+
+
+
 FastAPI webhook server that receives Slack `app_mention` events and routes them to the LangGraph agent. This module is complete and stable — it does not need changes once the agent is wired in.
 
 ## Prerequisites
